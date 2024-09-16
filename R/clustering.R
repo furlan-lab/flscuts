@@ -307,6 +307,30 @@ groupSums <- function(mat, groups = NULL, sparse = FALSE) {
 }
 
 
+#' @title Perform SVD for Latent Semantic Indexing
+#' @description Computes Singular Value Decomposition (SVD) on a term-frequency matrix for dimensionality reduction.
+#' @param sp_mat A term-frequency sparse matrix (genes x cells).
+#' @param num_dim The number of dimensions to retain.
+#' @param mat_only Logical indicating whether to return only the transformed matrix. Default is TRUE.
+#' @return If `mat_only` is TRUE, returns the transformed matrix; otherwise, returns a list containing the matrix and SVD components.
+#' @importFrom irlba irlba
+#' @export
+svd_lsi <- function(sp_mat, num_dim, mat_only = TRUE) {
+  if (!inherits(sp_mat, "dgCMatrix")) {
+    stop("Input matrix must be a sparse matrix of class 'dgCMatrix'.")
+  }
+  svd <- irlba::irlba(sp_mat, nv = num_dim, nu = num_dim)
+  mat_svd <- svd$u %*% diag(svd$d)
+  rownames(mat_svd) <- colnames(sp_mat)
+  colnames(mat_svd) <- paste0("LSI_", seq_len(ncol(mat_svd)))
+  if (mat_only) {
+    return(mat_svd)
+  } else {
+    return(list(mat_svd = mat_svd, svd = svd))
+  }
+}
+
+
 
 
 #' @title Find Partitions in a Seurat Object Similar to Monocle3

@@ -368,3 +368,61 @@ fix_assignment <- function(vector) {
   vector[vector != "Multiplet"] <- as.numeric(vector[vector != "Multiplet"]) + 1
   vector
 }
+
+#'
+#' #' @title Lighten or Darken a Color
+#' #' @description Adjusts the brightness of a hex color by a specified amount.
+#' #' @param col A character string representing a hex color (e.g., "#FF0000").
+#' #' @param amt Integer value between -255 and 255 indicating the amount to lighten or darken the color.
+#' #' @return A hex color string representing the adjusted color.
+#' #' @export
+#' lighten_darken_color <- function(col, amt) {
+#'   if (substring(col, 1, 1) == "#") {
+#'     col <- substring(col, 2)
+#'   }
+#'   num <- as.integer(paste0("0x", col))
+#'   r <- (num >> 16) & 0xFF
+#'   g <- (num >> 8) & 0xFF
+#'   b <- num & 0xFF
+#'
+#'   adjust <- function(x) {
+#'     x <- x + amt
+#'     x <- max(min(255, x), 0)
+#'     return(x)
+#'   }
+#'
+#'   r <- adjust(r)
+#'   g <- adjust(g)
+#'   b <- adjust(b)
+#'
+#'   new_col <- sprintf("#%02X%02X%02X", r, g, b)
+#'   return(new_col)
+#' }
+
+
+#' @title Generate a Color Palette
+#' @description Creates a color palette of specified length, optionally scrambled.
+#' @param n Integer specifying the number of colors to generate.
+#' @param scramble Logical indicating whether to randomly shuffle the colors. Default is FALSE.
+#' @return A character vector of hex color codes.
+#' @export
+sfc <- function(n, scramble = FALSE) {
+  if (!is.numeric(n) || n <= 0 || n %% 1 != 0) {
+    stop("Please input a positive integer for 'n'.")
+  }
+  base_colors <- c(
+    "#16482A", "#1C7C40", "#45AC49", "#69BC9A", "#FBD43F",
+    "#E77A2B", "#DC3F32", "#932528", "#50191E", "#96C4D9",
+    "#2394C4", "#4575AD", "#8681B0", "#6C5492", "#8C4A8D",
+    "#9E2563", "#492C74", "#E9E52F", "#F8C566", "#D85191"
+  )
+  palette_func <- colorRampPalette(base_colors)
+  colors <- palette_func(n)
+  if (scramble) {
+    colors <- sample(colors)
+  }
+  return(colors)
+}
+
+
+
