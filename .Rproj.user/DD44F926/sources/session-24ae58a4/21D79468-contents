@@ -1,0 +1,246 @@
+#' @title Make Milo Neighborhoods from Seurat Object
+#'
+#' @description
+#' Constructs Milo neighborhoods from a Seurat object for differential abundance analysis.
+#'
+#' @param seu A Seurat object containing single-cell RNA-seq data.
+#' @param assay Character string specifying the assay to use from the Seurat object. Default is "RNA".
+#' @param k Integer specifying the number of nearest neighbors to compute in the k-NN graph. Default is 30.
+#' @param d Integer specifying the number of dimensions to use from the PCA reduction. Default is 30.
+#' @param prop Numeric value specifying the proportion of cells to include in each neighborhood. Default is 0.1.
+#' @param variable Character string specifying the column in metadata by which to measure differential abundance.
+#' @param covariate1 Character string specifying the column in metadata representing samples or a primary covariate.
+#' @param covariate2 Character string specifying the column in metadata representing batch or a secondary covariate.
+#' @param plot Logical indicating whether to plot the neighborhood size histogram. Default is TRUE.
+#'
+#' @return A list containing:
+#' \describe{
+#'   \item{milo}{A Milo object with neighborhoods constructed.}
+#'   \item{design}{A data frame representing the design matrix for differential testing.}
+#' }
+#'
+#' @details
+#' This function converts a Seurat object into a SingleCellExperiment object, constructs Milo neighborhoods,
+#' counts cells within neighborhoods, and prepares a design matrix for differential abundance testing.
+#'
+#' @importFrom SingleCellExperiment SingleCellExperiment colData<- rowData<- reducedDims<-
+#' @importFrom S4Vectors DataFrame
+#' @importFrom miloR Milo buildGraph makeNhoods plotNhoodSizeHist countCells calcNhoodDistance buildNhoodGraph
+#' @importFrom dplyr distinct
+#' @examples
+#' # Example usage:
+#' # result <- make_nhoods(seu, variable="condition", covariate1="sample_id", covariate2="batch")
+#'
+#' @export
+make_nhoods <- function(seu,
+                        assay = "RNA",
+                        k = 30,
+                        d = 30,
+                        prop = 0.1,
+                        variable = NULL,
+                        covariate1 = NULL,
+                        covariate2 = NULL,
+                        plot = TRUE) {
+  if (!all(c(variable, covariate1, covariate2) %in% colnames(seu@meta.data))) {
+    stop("variable, covariate1, or covariate2 not found in meta data")
+  }
+  message("Making SCE Object")
+  sce <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(counts = seu@assays[[assay]]$counts)
+  )
+  SingleCellExperiment::colData(sce) <- S4Vectors::DataFrame(seu@meta.data)
+  SingleCellExperiment::rowData(sce) <- S4Vectors::DataFrame(
+    symbol = rownames(seu),
+    row.names = rownames(seu)
+  )
+  SingleCellExperiment::reducedDims(sce) <- list(
+    PCA = seu@reductions$pca@cell.embeddings,
+    UMAP = seu@reductions$umap@cell.embeddings
+  )
+  message("Making MiloR Object")
+  sce_milo <- miloR::Milo(sce)
+  sce_milo <- miloR::buildGraph(sce_milo, k = k, d = d)
+  sce_milo <- miloR::makeNhoods(sce_milo, prop = prop, k = k, d = d, refined = TRUE)
+  if (plot) {
+    miloR::plotNhoodSizeHist(sce_milo)
+  }
+  sce_milo <- miloR::countCells(
+    sce_milo,
+    meta.data = data.frame(SingleCellExperiment::colData(sce_milo)),
+    samples = covariate1
+  )
+  message("Making Design Matrix")
+  design <- data.frame(SingleCellExperiment::colData(sce_milo))[, c(covariate1, variable, covariate2)]
+  design <- dplyr::distinct(design)
+  rownames(design) <- design[[covariate1]]
+  message("Calculating NHood Distance")
+  sce_milo <- miloR::calcNhoodDistance(sce_milo, d = d, reduced.dim = "PCA")
+  message("Building Neighborhood Graph")
+  sce_milo <- miloR::buildNhoodGraph(sce_milo)
+  list(milo = sce_milo, design = design)
+}
+
+#' @title Test Milo Neighborhoods for Differential Abundance
+#'
+#' @description
+#' Tests Milo neighborhoods for differential abundance using a specified design formula.
+#'
+#' @param sce_milo A list containing a Milo object and a design matrix, as returned by \code{\link{make_nhoods}}.
+#' @param formula_str A character string representing the design formula for differential testing (e.g., "~ condition").
+#'
+#' @return A data frame of differential abundance results for the neighborhoods.
+#'
+#' @details
+#' This function performs differential abundance testing on the neighborhoods using the specified design formula.
+#'
+#' @importFrom miloR testNhoods
+#' @examples
+#' # Example usage:
+#' # da_results <- test_nhoods(sce_milo, formula_str = "~ condition")
+#'
+#' @export
+test_nhoods <- function(sce_milo, formula_str) {
+  da_results <- miloR::testNhoods(
+    sce_milo[["milo"]],
+    design = as.formula(formula_str),
+    design.df = sce_milo[["design"]]
+  )
+  return(da_results)
+}
+
+#' @title Annotate Milo Neighborhoods with Cell Types
+#'
+#' @description
+#' Annotates Milo neighborhoods with cell type information and filters neighborhoods based on abundance threshold.
+#'
+#' @param sce_milo A list containing a Milo object and a design matrix.
+#' @param da_results A data frame of differential abundance results for the neighborhoods.
+#' @param celltype_var Character string specifying the column in metadata containing cell type annotations.
+#' @param abundance_thresh Numeric value specifying the minimum fraction threshold for a cell type to be considered dominant in a neighborhood. Default is 0.7.
+#' @param plot Logical indicating whether to generate diagnostic plots. Default is TRUE.
+#'
+#' @return A list containing:
+#' \describe{
+#'   \item{milo}{The updated Milo object.}
+#'   \item{da_results}{The annotated differential abundance results.}
+#'   \item{design}{The design matrix used for differential testing.}
+#' }
+#'
+#' @details
+#' This function annotates neighborhoods with cell type information, filters neighborhoods based on an abundance threshold, and optionally generates plots.
+#'
+#' @importFrom miloR annotateNhoods plotDAbeeswarm
+#' @importFrom ggplot2 ggplot aes_string geom_histogram
+#' @importFrom SingleCellExperiment logcounts<- counts
+#' @examples
+#' # Example usage:
+#' # result <- annotate_nhood(sce_milo, da_results, celltype_var = "cell_type")
+#'
+#' @export
+annotate_nhood <- function(sce_milo, da_results, celltype_var, abundance_thresh = 0.7, plot = TRUE) {
+  da_results <- miloR::annotateNhoods(sce_milo[["milo"]], da_results, coldata_col = celltype_var)
+  fraction_col <- paste0(celltype_var, "_fraction")
+  da_results[[celltype_var]] <- ifelse(
+    da_results[[fraction_col]] < abundance_thresh,
+    "Mixed",
+    da_results[[celltype_var]]
+  )
+  if (plot) {
+    ggplot2::ggplot(da_results, ggplot2::aes_string(fraction_col)) +
+      ggplot2::geom_histogram(bins = 50)
+    miloR::plotDAbeeswarm(da_results, group.by = celltype_var)
+  }
+  SingleCellExperiment::logcounts(sce_milo[["milo"]]) <- log1p(
+    SingleCellExperiment::counts(sce_milo[["milo"]])
+  )
+  list(milo = sce_milo[["milo"]], da_results = da_results, design = sce_milo[["design"]])
+}
+
+#' @title Find Marker Genes for Differentially Abundant Neighborhoods
+#'
+#' @description
+#' Identifies marker genes for differentially abundant neighborhoods.
+#'
+#' @param all_results A list containing the Milo object, differential abundance results, and design matrix.
+#' @param covariate1 Character string specifying the column in metadata representing samples or a covariate.
+#' @param celltype_var Character string specifying the column in metadata containing cell type annotations.
+#' @param celltypes Character vector specifying the cell types to consider. If NULL, all cell types are considered. Default is NULL.
+#' @param plot Logical indicating whether to generate diagnostic plots. Default is TRUE.
+#' @param da_fdr Numeric value specifying the FDR threshold for differentially abundant neighborhoods. Default is 0.1.
+#' @param marker_p_val Numeric value specifying the p-value threshold for marker gene identification. Default is 0.01.
+#'
+#' @return A vector of marker gene identifiers.
+#'
+#' @details
+#' This function identifies marker genes for differentially abundant neighborhoods, optionally focusing on specified cell types, and can generate diagnostic plots.
+#'
+#' @importFrom miloR findNhoodMarkers calcNhoodExpression plotNhoodExpressionDA
+#' @importFrom SingleCellExperiment logcounts<- counts
+#' @examples
+#' # Example usage:
+#' # markers <- find_markers(all_results, covariate1 = "sample_id", celltype_var = "cell_type")
+#'
+#' @export
+find_markers <- function(all_results,
+                         covariate1,
+                         celltype_var,
+                         celltypes = NULL,
+                         plot = TRUE,
+                         da_fdr = 0.1,
+                         marker_p_val = 0.01) {
+  if (is.null(celltypes)) {
+    dge_smp <- miloR::findNhoodMarkers(
+      all_results$milo,
+      all_results$da_results,
+      assay = "counts",
+      gene.offset = FALSE,
+      da.fdr = da_fdr,
+      aggregate.samples = TRUE,
+      sample_col = covariate1
+    )
+    markers <- dge_smp[which(dge_smp$adj.P.Val_1 < marker_p_val), "GeneID"]
+    SingleCellExperiment::logcounts(all_results$milo) <- log1p(
+      SingleCellExperiment::counts(all_results$milo)
+    )
+    all_results$milo <- miloR::calcNhoodExpression(all_results$milo, subset.row = markers)
+    if (plot) {
+      miloR::plotNhoodExpressionDA(
+        all_results$milo,
+        all_results$da_results,
+        features = markers,
+        assay = "logcounts",
+        scale_to_1 = TRUE,
+        cluster_features = TRUE
+      )
+    }
+    return(markers)
+  } else {
+    dge_smp <- miloR::findNhoodMarkers(
+      all_results$milo,
+      all_results$da_results,
+      assay = "counts",
+      gene.offset = FALSE,
+      da.fdr = da_fdr,
+      aggregate.samples = TRUE,
+      sample_col = covariate1,
+      subset.nhoods = all_results$da_results[[celltype_var]] %in% celltypes
+    )
+    markers <- dge_smp[which(dge_smp$adj.P.Val_1 < marker_p_val), "GeneID"]
+    SingleCellExperiment::logcounts(all_results$milo) <- log1p(
+      SingleCellExperiment::counts(all_results$milo)
+    )
+    all_results$milo <- miloR::calcNhoodExpression(all_results$milo, subset.row = markers)
+    if (plot) {
+      miloR::plotNhoodExpressionDA(
+        all_results$milo,
+        all_results$da_results,
+        features = markers,
+        subset.nhoods = all_results$da_results[[celltype_var]] %in% celltypes,
+        assay = "logcounts",
+        scale_to_1 = TRUE,
+        cluster_features = TRUE
+      )
+    }
+    return(markers)
+  }
+}
