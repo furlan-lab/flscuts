@@ -1,11 +1,12 @@
 Package: flscuts
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Furlan Lab Shortcuts
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
-Encoding: UTF-8
+Author: Scott Furlan
+Maintainer: Scott Furlan <scfurl@users.noreply.github.com>
+Description: Not much more to say...
+License: MIT
 LazyData: true
+RoxygenNote: 7.3.2
+SystemRequirements: C++11
+Encoding: UTF-8
