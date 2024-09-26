@@ -1,4 +1,4 @@
-#' @title Iterative Latent Semantic Indexing (LSI) for Single-Cell Data
+#' @title Iterative Latent Semantic Indexing (LSI) for Single-Cell Data (Compatible with Monocle3 and Seurat) with optional UMAP
 #'
 #' @description
 #' This function performs iterative LSI on single-cell data to minimize batch effects and accentuate cell type differences. It can accept either a Monocle3 `cell_data_set` object or a Seurat object as input. The function iteratively:
@@ -24,6 +24,7 @@
 #' @param leiden_iter Integer specifying the number of iterations for Leiden clustering. Default is 1.
 #' @param random_seed Integer specifying the random seed for reproducibility. Default is 2020.
 #' @param verbose Logical indicating whether to display progress messages. Default is \code{FALSE}.
+#' @param run_umap Logical indicating whether to run UMAP.
 #' @param return_object Logical indicating whether to return the updated input object with LSI reduction and clustering results. Default is \code{TRUE}.
 #' @param ... Additional arguments passed to lower-level functions.
 #'
@@ -68,213 +69,421 @@
 #'   resolution = c(0.2, 0.5, 0.8)
 #' )
 #' }
-iterative_LSI <- function(object,
-                          num_dim = 25,
-                          starting_features = NULL,
-                          resolution = c(1e-4, 3e-4, 5e-4),
-                          num_features = 3000,
-                          exclude_features = NULL,
-                          do_tf_idf = TRUE,
-                          binarize = FALSE,
-                          scale = TRUE,
-                          log_transform = TRUE,
-                          scale_to = 10000,
-                          leiden_k = 20,
-                          leiden_weight = FALSE,
-                          leiden_iter = 1,
-                          random_seed = 2020,
-                          verbose = FALSE,
-                          return_object = TRUE,
-                          ...) {
-  # Set random seed for reproducibility
-  set.seed(random_seed)
-
-  # Determine the class of the input object
-  if (methods::is(object, "cell_data_set")) {
-    # Monocle3 cell_data_set
-    object_type <- "monocle"
-  } else if (methods::is(object, "Seurat")) {
-    # Seurat object
+iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resolution = c(1e-04,
+                                                                                          3e-04, 5e-04), do_tf_idf = TRUE, num_features = c(3000, 3000,
+                                                                                                                                            3000), exclude_features = NULL, binarize = FALSE, scale = TRUE,
+                           log_transform = TRUE, LSI_method = 1, partition_qval = 0.05,
+                           seed = 2020, scale_to = 10000, leiden_k = 20, leiden_weight = FALSE,
+                           leiden_iter = 1, verbose = FALSE, return_iterations = FALSE, run_umap = FALS, ...)
+{
+  # Check object type
+  if (is(object, "Seurat")) {
     object_type <- "seurat"
+  } else if (is(object, "cell_data_set")) {
+    object_type <- "monocle3"
   } else {
-    stop("The input object must be either a Monocle3 cell_data_set or a Seurat object.")
+    stop("The object must be a Seurat object or a Monocle3 cell_data_set object.")
   }
 
-  # Ensure num_features is a vector matching the length of resolution
-  if (length(num_features) == 1) {
-    num_features <- rep(num_features, length(resolution))
-  } else if (length(num_features) != length(resolution)) {
-    stop("Length of num_features must be 1 or match the length of resolution.")
-  }
-
-  # Extract expression matrix based on object type
-  if (object_type == "monocle") {
-    mat <- SummarizedExperiment::assay(object)
-  } else if (object_type == "seurat") {
-    mat <- Seurat::GetAssayData(object, assay = DefaultAssay(object), slot = "counts")
-  }
-
-  # Exclude specified features
-  if (!is.null(exclude_features)) {
-    mat <- mat[!rownames(mat) %in% exclude_features, ]
-  }
-
-  # Binarize data if specified
-  if (binarize) {
-    if (verbose) {
-      message("Binarizing data...")
+  # Handle starting_features and num_features length
+  if (!is.null(starting_features)) {
+    if (length(num_features) != length(resolution)) {
+      num_features <- c(length(starting_features), num_features)
     }
+  }
+  if (length(num_features) != length(resolution)) {
+    message("Numbers of elements for resolution and num_features do not match. Will use num_features[1]...")
+    num_features <- rep(num_features, length(resolution))
+  }
+
+  # Get the expression matrix
+  if (!is.null(exclude_features)) {
+    if (object_type == "seurat") {
+      mat <- GetAssayData(object)
+      mat <- mat[!rownames(mat) %in% exclude_features, ]
+    } else {
+      mat <- assay(object)
+      mat <- mat[!rownames(mat) %in% exclude_features, ]
+    }
+  } else {
+    if (object_type == "seurat") {
+      mat <- GetAssayData(object)
+    } else {
+      mat <- assay(object)
+    }
+  }
+
+  original_features <- rownames(mat)
+  set.seed(seed)
+
+  if (binarize) {
+    message("Binarizing...")
     mat@x[mat@x > 0] <- 1
   }
 
-  # Initialize variables
-  original_features <- rownames(mat)
-  iterations_list <- list()
+  outlist <- list()
 
-  # Scale data if specified
   if (scale) {
-    mat_norm <- t(t(mat) / Matrix::colSums(mat)) * scale_to
+    matNorm <- t(t(mat)/Matrix::colSums(mat)) * scale_to
   } else {
-    mat_norm <- mat
+    matNorm <- mat
   }
 
-  # Log-transform data if specified
   if (log_transform) {
-    mat_norm@x <- log2(mat_norm@x + 1)
+    matNorm@x <- log2(matNorm@x + 1)
   }
 
-  # Start iterations
-  for (iteration in seq_along(resolution)) {
-    if (verbose) {
-      message("Performing iteration ", iteration, "...")
+  message("Performing LSI/SVD for iteration 1....")
+
+  if (!is.null(starting_features)) {
+    if (!all(starting_features %in% rownames(mat))) {
+      stop("Not all starting features found in data")
     }
-
-    # Select features
-    if (iteration == 1 && !is.null(starting_features)) {
-      if (!all(starting_features %in% rownames(mat_norm))) {
-        stop("Not all starting_features found in the data.")
-      }
-      feature_indices <- which(rownames(mat_norm) %in% starting_features)
-    } else if (iteration == 1) {
-      feature_variances <- sparseRowVariances(mat_norm)
-      feature_indices <- head(order(feature_variances, decreasing = TRUE), num_features[iteration])
-    } else {
-      feature_variances <- matrixStats::rowVars(cluster_mat)
-      feature_indices <- head(order(feature_variances, decreasing = TRUE), num_features[iteration])
-    }
-
-    # Subset matrix to selected features
-    mat_subset <- mat_norm[feature_indices, ]
-
-    # Perform TF-IDF transformation if specified
-    if (do_tf_idf) {
-      tfidf_mat <- tf_idf_transform(mat_subset)
-      tfidf_mat@x[is.na(tfidf_mat@x)] <- 0
-    } else {
-      tfidf_mat <- mat_subset
-    }
-
-    # Perform SVD using irlba
-    svd_result <- irlba::irlba(tfidf_mat, nv = num_dim)
-    lsi_embeddings <- svd_result$u %*% diag(svd_result$d)
-    rownames(lsi_embeddings) <- colnames(mat)
-    colnames(lsi_embeddings) <- paste0("LSI_", 1:ncol(lsi_embeddings))
-
-    # Clustering based on object type
-    if (object_type == "monocle") {
-      # Store LSI embeddings in reducedDims
-      SingleCellExperiment::reducedDims(object)[["LSI"]] <- lsi_embeddings
-
-      # Perform clustering
-      object <- monocle3::cluster_cells(
-        object,
-        reduction_method = "LSI",
-        k = leiden_k,
-        weight = leiden_weight,
-        num_iter = leiden_iter,
-        resolution = resolution[iteration],
-        random_seed = random_seed,
-        verbose = verbose,
-        ...
-      )
-
-      clusters <- monocle3::clusters(object)
-
-      # Compute cluster matrix
-      cluster_mat <- groupSums(mat, groups = clusters, sparse = TRUE)
-      cluster_mat <- edgeR::cpm(cluster_mat, log = TRUE, prior.count = 3)
-    } else if (object_type == "seurat") {
-      # Store LSI embeddings in Seurat object
-      object[["lsi"]] <- Seurat::CreateDimReducObject(embeddings = lsi_embeddings, key = "LSI_", assay = DefaultAssay(object))
-
-      # Perform clustering
-      object <- Seurat::FindNeighbors(
-        object,
-        reduction = "lsi",
-        dims = 1:num_dim,
-        k.param = leiden_k,
-        verbose = verbose
-      )
-      object <- Seurat::FindClusters(
-        object,
-        resolution = resolution[iteration],
-        algorithm = 4,  # Algorithm 4 is Leiden in Seurat
-        random.seed = random_seed,
-        verbose = verbose
-      )
-
-      clusters <- Seurat::Idents(object)
-
-      # Compute cluster matrix
-      cluster_mat <- groupSums(mat, groups = clusters, sparse = TRUE)
-      cluster_mat <- edgeR::cpm(cluster_mat, log = TRUE, prior.count = 3)
-    }
-
-    # Store intermediate results if requested
-    iteration_name <- paste0("iteration_", iteration)
-    iterations_list[[iteration_name]] <- list(
-      lsi_embeddings = lsi_embeddings,
-      features = original_features[feature_indices],
-      clusters = clusters
-    )
-
-    # Update mat_norm for next iteration (if needed)
-    # In this implementation, mat_norm remains the same unless custom updates are needed
-  }
-
-  if (return_object) {
-    return(object)
+    f_idx <- which(rownames(mat) %in% starting_features)
   } else {
-    return(list(
-      lsi_embeddings = lsi_embeddings,
-      clusters = clusters,
-      iterations = iterations_list
-    ))
+    # Compute variances and select features
+    if (requireNamespace("matrixStats", quietly = TRUE)) {
+      feature_vars <- matrixStats::rowVars(as.matrix(matNorm))
+    } else {
+      stop("Package 'matrixStats' is required for variance calculation.")
+    }
+    f_idx <- head(order(feature_vars, decreasing = TRUE), num_features[1])
+  }
+
+  if (do_tf_idf) {
+    tf <- tf_idf_transform(mat[f_idx, ], method = LSI_method)
+    row_sums <- Matrix::rowSums(mat[f_idx, ])
+    tf@x[is.na(tf@x)] <- 0
+  } else {
+    tf <- mat[f_idx, ]
+    row_sums <- Matrix::rowSums(mat[f_idx, ])
+  }
+
+  svd_list <- svd_lsi(tf, num_dim, mat_only = FALSE)
+
+  # Perform clustering
+  if (object_type == "monocle3") {
+    # For monocle3, use monocle3:::leiden_clustering
+    cluster_result <- monocle3:::leiden_clustering(data = svd_list$matSVD,
+                                                   pd = colData(object), k = leiden_k, weight = leiden_weight,
+                                                   num_iter = leiden_iter, resolution_parameter = resolution[1],
+                                                   random_seed = seed, verbose = verbose, nn_control = list("method"="nn2"), ...)
+    clusters <- factor(igraph::membership(cluster_result$optim_res))
+  } else if (object_type == "seurat") {
+    # For Seurat, use FindNeighbors and FindClusters
+    object@reductions[["lsi"]] <- Seurat::CreateDimReducObject(embeddings = svd_list$matSVD,
+                                                    key = "LSI_", assay = Seurat::DefaultAssay(object))
+    object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k)
+    object <- Seurat::FindClusters(object, resolution = resolution[1], algorithm = 1, random.seed = seed, verbose = verbose)
+    clusters <- Seurat::Idents(object)
+  }
+
+  # Proceed with the rest of the function, adapting as needed
+  # For example, calculate clusterMat, etc.
+  clusterMat <- edgeR::cpm(groupSums(mat, clusters, sparse = TRUE),
+                           log = TRUE, prior.count = 3)
+
+  if (length(resolution) == 1) {
+    # Final iteration
+    if (object_type == "monocle3") {
+      SingleCellExperiment::reducedDims(object)[["LSI"]] <- svd_list$matSVD
+      # Save other components as needed
+      # Store clusters
+      if (length(unique(clusters)) > 1) {
+        cluster_graph_res <- monocle3:::compute_partitions(cluster_result$g,
+                                                           cluster_result$optim_res, partition_qval, verbose)
+        partitions <- igraph::components(cluster_graph_res$cluster_g)$membership[cluster_result$optim_res$membership]
+        partitions <- as.factor(partitions)
+      } else {
+        partitions <- rep(1, nrow(colData(object)))
+      }
+      names(partitions) <- row.names(colData(object))
+      object@clusters[["LSI"]] <- list(cluster_result = cluster_result,
+                                       partitions = partitions, clusters = clusters)
+      if (run_umap){
+        object <- run_umap(object, ...)
+      }
+    } else if (object_type == "seurat") {
+      # Clusters are already stored in object@meta.data
+      object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
+                                          row_sums = row_sums, seed=seed, binarize=binarize,
+                                          scale_to=scale_to, num_dim=num_dim, resolution=resolution,
+                                          granges=NULL, LSI_method=LSI_method, outliers=NULL)
+      if (run_umap){
+        object <- run_umap(object, ...)
+      }
+
+    }
+
+    if (return_iterations) {
+      outlist[["iteration_1"]] <- list(matSVD = svd_list$matSVD,
+                                       features = original_features[f_idx], clusters = clusters)
+      return(list(object = object, iterationlist = outlist))
+    } else {
+      return(object)
+    }
+  }
+
+  # For multiple iterations
+  for (iteration in 2:length(resolution)) {
+    message("Performing LSI/SVD for iteration ", iteration, "....")
+    f_idx <- head(order(matrixStats::rowVars(clusterMat), decreasing = TRUE),
+                  num_features[iteration])
+    if (do_tf_idf) {
+      tf <- tf_idf_transform(mat[f_idx, ], method = LSI_method)
+      tf@x[is.na(tf@x)] <- 0
+      row_sums <- Matrix::rowSums(mat[f_idx, ])
+    } else {
+      tf <- mat[f_idx, ]
+      row_sums <- Matrix::rowSums(mat[f_idx, ])
+    }
+
+    svd_list <- svd_lsi(tf, num_dim, mat_only = FALSE)
+
+    # Clustering
+    if (object_type == "monocle3") {
+      cluster_result <- monocle3:::leiden_clustering(data = svd_list$matSVD,
+                                                     pd = colData(object), k = leiden_k, weight = leiden_weight,
+                                                     num_iter = leiden_iter, resolution_parameter = resolution[iteration],
+                                                     random_seed = seed, verbose = verbose, nn_control = list("method"="nn2"), ...)
+      clusters <- factor(igraph::membership(cluster_result$optim_res))
+    } else if (object_type == "seurat") {
+      object@reductions[["lsi"]] <- Seurat::CreateDimReducObject(embeddings = svd_list$matSVD,
+                                                      key = "LSI_", assay = Seurat::DefaultAssay(object))
+      object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k)
+      object <- Seurat::FindClusters(object, resolution = resolution[iteration], algorithm = 1, random.seed = seed, verbose = verbose)
+      clusters <- Seurat::Idents(object)
+    }
+
+    clusterMat <- edgeR::cpm(groupSums(mat, clusters, sparse = TRUE),
+                             log = TRUE, prior.count = 3)
+
+    if (iteration == length(resolution)) {
+      # Final iteration
+      if (object_type == "monocle3") {
+        SingleCellExperiment::reducedDims(object)[["LSI"]] <- svd_list$matSVD
+        # Store clusters and partitions
+        if (length(unique(clusters)) > 1) {
+          cluster_graph_res <- monocle3:::compute_partitions(cluster_result$g,
+                                                             cluster_result$optim_res, partition_qval, verbose)
+          partitions <- igraph::components(cluster_graph_res$cluster_g)$membership[cluster_result$optim_res$membership]
+          partitions <- as.factor(partitions)
+        } else {
+          partitions <- rep(1, nrow(colData(object)))
+        }
+        names(partitions) <- row.names(colData(object))
+        object@clusters[["LSI"]] <- list(cluster_result = cluster_result,
+                                         partitions = partitions, clusters = clusters)
+      } else if (object_type == "seurat") {
+        # Clusters are already stored
+      }
+      if (return_iterations) {
+        it_count <- paste0("iteration_", iteration)
+        outlist[[it_count]] <- list(matSVD = svd_list$matSVD,
+                                    features = original_features[f_idx], clusters = clusters)
+        return(list(object = object, iterationlist = outlist))
+      } else {
+        return(object)
+      }
+    } else {
+      if (return_iterations) {
+        it_count <- paste0("iteration_", iteration)
+        outlist[[it_count]] <- list(matSVD = svd_list$matSVD,
+                                    features = original_features[f_idx], clusters = clusters)
+      }
+      next
+    }
   }
 }
 
-# Helper Functions
-
-#' @title TF-IDF Transformation
-#' @description Performs TF-IDF transformation on a matrix.
-#' @param mat A sparse matrix.
-#' @return A sparse matrix after TF-IDF transformation.
+#' @keywords internal
+#' @importFrom uwot umap
 #' @export
-tf_idf_transform <- function(mat) {
-  # Compute term frequency (TF)
-  tf <- Matrix::t(Matrix::t(mat) / Matrix::colSums(mat))
-  # Compute inverse document frequency (IDF)
-  idf <- log(1 + ncol(mat) / Matrix::rowSums(mat))
-  # Compute TF-IDF
-  tf_idf <- Matrix::Diagonal(x = as.vector(idf)) %*% tf
-  return(tf_idf)
+#'
+run_umap <- function(object, ...) {
+  # Check object type
+  if (is(object, "Seurat")) {
+    object_type <- "seurat"
+  } else if (is(object, "cell_data_set")) {
+    object_type <- "monocle3"
+  } else {
+    stop("The object must be a Seurat object or a Monocle3 cell_data_set object.")
+  }
+
+  # Default UMAP parameters
+  default_params <- list(
+    n_neighbors = 30L,
+    n_components = 2L,
+    metric = "cosine",
+    n_epochs = NULL,
+    learning_rate = 1,
+    min_dist = 0.3,
+    spread = 1,
+    set_op_mix_ratio = 1,
+    local_connectivity = 1L,
+    repulsion_strength = 1,
+    negative_sample_rate = 5,
+    verbose = TRUE,
+    ret_model = TRUE,
+    ret_nn = TRUE
+  )
+
+  # Capture additional arguments from ...
+  user_params <- list(...)
+
+  # Merge user-provided parameters with the default ones
+  umap_params <- modifyList(default_params, user_params)
+
+  if (object_type == "monocle3") {
+    ##TODO
+    print("Under construction for Monocle3 objects.")
+    return(0)
+  }
+
+  if (object_type == "seurat") {
+    umap_params$X <- object@reductions$lsi@cell.embeddings
+    # Run UMAP with the final set of parameters
+    umap_res <- do.call(umap, umap_params)
+    #umap_res = umap(umap_params$X, ret_model = TRUE,  ret_extra = "model", verbose = umap_params$verbose)
+    # Rename UMAP dimensions
+    colnames(umap_res$embedding) <- c("UMAP_1", "UMAP_2")
+    # Store the UMAP embedding in the Seurat object
+    object@reductions[["umap"]] <- Seurat::CreateDimReducObject(embeddings = umap_res$embedding, key = "UMAP_", assay = DefaultAssay(object))
+    object@reductions[["umap"]]@misc$model <- umap_res
+    # Optionally return the modified object
+    return(object)
+  }
 }
+
+
+#' Cluster LSI (Compatible with Monocle3 and Seurat)
+#'
+#' @description This function extracts clustering from the last iteration of LSI (see \code{iterative_LSI}) in a single-cell experiment. It uses Leiden clustering and computes partitions. Compatible with both Monocle3 `cell_data_set` and Seurat objects.
+#'
+#' @param object The `cell_data_set` or Seurat object upon which to perform this operation.
+#' @param k Integer number of nearest neighbors to use when creating the k nearest neighbor graph for Leiden clustering. Default is 20.
+#' @param weight A logical argument to determine whether or not to use Jaccard coefficients for two nearest neighbors (based on the overlapping of their kNN) as the weight used for Louvain clustering. Default is FALSE.
+#' @param num_iter Integer number of iterations used for Leiden clustering. Default is 1.
+#' @param resolution Parameter that controls the resolution of clustering. If NULL (Default), the parameter is determined automatically.
+#' @param random_seed The seed used by the random number generator. Default is 2020.
+#' @param verbose A logical flag to determine whether or not to print the run details.
+#' @param partition_qval Numeric, the q-value cutoff to determine when to partition. Default is 0.05.
+#' @references Granja, J. M.et al. (2019). Single-cell multiomic analysis identifies regulatory programs in mixed-phenotype acute leukemia. Nature Biotechnology, 37(12), 1458–1465.
+#' @export
+#' @keywords internal
+cluster_LSI <- function(object,
+                        k = 20,
+                        weight = FALSE,
+                        num_iter = 1,
+                        resolution = NULL,
+                        random_seed = 2020,
+                        verbose = TRUE,
+                        partition_qval = 0.05) {
+
+  # Check object type
+  if (is(object, "Seurat")) {
+    object_type <- "seurat"
+  } else if (is(object, "cell_data_set")) {
+    object_type <- "monocle3"
+  } else {
+    stop("The object must be a Seurat object or a Monocle3 cell_data_set object.")
+  }
+
+  if (object_type == "monocle3") {
+    lsi_embeddings <- SingleCellExperiment::reducedDims(object)[["LSI"]]
+    cluster_result <- monocle3:::leiden_clustering(data = lsi_embeddings,
+                                                   pd = colData(object), k = k, weight = weight,
+                                                   num_iter = num_iter, nn_control = list("method" = "nn2"),
+                                                   resolution_parameter = resolution,
+                                                   random_seed = random_seed, verbose = verbose)
+    cluster_graph_res <- monocle3:::compute_partitions(cluster_result$g,
+                                                       cluster_result$optim_res, partition_qval, verbose = verbose)
+    partitions <- as.factor(igraph::components(cluster_graph_res$cluster_g)$membership[cluster_result$optim_res$membership])
+    clusters <- factor(igraph::membership(cluster_result$optim_res))
+    object@clusters[["UMAP"]] <- list(cluster_result = cluster_result,
+                                      partitions = partitions, clusters = clusters)
+  } else if (object_type == "seurat") {
+    object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:ncol(object[["lsi"]]@cell.embeddings), k.param = k)
+    object <- Seurat::FindClusters(object, resolution = resolution, algorithm = 4, random.seed = random_seed, verbose = verbose)
+  }
+
+  return(object)
+}
+
+
+
+
+#' Performs TF-IDF transformation on a cell_data_set
+#'
+#' @description Just like it sounds.
+#'
+#' @param cds_list Input cell_data_set object or sparse matrix.
+#' @importFrom Matrix rowSums
+#' @importFrom Matrix colSums
+#' @importFrom Matrix Diagonal
+#' @importFrom Matrix t
+#' @export
+#' @keywords internal
+tf_idf_transform <- function(input, method=1, verbose=T){
+  if(class(input)=="cell_data_set"){
+    mat<-exprs(input)
+  }else{
+    mat<-input
+  }
+  rn <- rownames(mat)
+  row_sums<-rowSums(mat)
+  nz<-which(row_sums>0)
+  mat <- mat[nz,]
+  rn <- rn[nz]
+  row_sums <- row_sums[nz]
+  col_sums <- colSums(mat)
+
+  #column normalize
+  mat <-Matrix::t(Matrix::t(mat)/col_sums)
+
+
+  if (method == 1) {
+    #Adapted from Casanovich et al.
+    if(verbose) message("Computing Inverse Document Frequency")
+    idf   <- as(log(1 + ncol(mat) / row_sums), "sparseVector")
+    if(verbose) message("Computing TF-IDF Matrix")
+    mat <- as(Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
+      mat
+  }
+  else if (method == 2) {
+    #Adapted from Stuart et al.
+    if(verbose) message("Computing Inverse Document Frequency")
+    idf   <- as( ncol(mat) / row_sums, "sparseVector")
+    if(verbose) message("Computing TF-IDF Matrix")
+    mat <- as(Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
+      mat
+    mat@x <- log(mat@x * scale_to + 1)
+  }else if (method == 3) {
+    mat@x <- log(mat@x + 1)
+    if(verbose) message("Computing Inverse Document Frequency")
+    idf <- as(log(1 + ncol(mat) /row_sums), "sparseVector")
+    if(verbose) message("Computing TF-IDF Matrix")
+    mat <- as(Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
+      mat
+  }else {
+    stop("LSIMethod unrecognized please select valid method!")
+  }
+  rownames(mat) <- rn
+  if(class(input)=="cell_data_set"){
+    input@assays$data$counts<-mat
+    return(input)
+  }else{
+    return(mat)
+  }
+}
+
 
 #' @title Sparse Row Variances
 #' @description Computes the variances of rows in a sparse matrix efficiently.
 #' @param m A sparse matrix of class \code{dgCMatrix}.
 #' @return A numeric vector of row variances.
 #' @export
+#' @keywords internal
 sparseRowVariances <- function(m) {
   row_means <- Matrix::rowMeans(m)
   row_means_sq <- row_means^2
@@ -289,6 +498,7 @@ sparseRowVariances <- function(m) {
 #' @param sparse Logical indicating whether the input matrix is sparse. Default is \code{FALSE}.
 #' @return A matrix with rows corresponding to the rows of \code{mat} and columns corresponding to the unique levels of \code{groups}.
 #' @export
+#' @keywords internal
 groupSums <- function(mat, groups = NULL, sparse = FALSE) {
   stopifnot(!is.null(groups))
   stopifnot(length(groups) == ncol(mat))
@@ -315,18 +525,20 @@ groupSums <- function(mat, groups = NULL, sparse = FALSE) {
 #' @return If `mat_only` is TRUE, returns the transformed matrix; otherwise, returns a list containing the matrix and SVD components.
 #' @importFrom irlba irlba
 #' @export
-svd_lsi <- function(sp_mat, num_dim, mat_only = TRUE) {
-  if (!inherits(sp_mat, "dgCMatrix")) {
-    stop("Input matrix must be a sparse matrix of class 'dgCMatrix'.")
-  }
-  svd <- irlba::irlba(sp_mat, nv = num_dim, nu = num_dim)
-  mat_svd <- svd$u %*% diag(svd$d)
-  rownames(mat_svd) <- colnames(sp_mat)
-  colnames(mat_svd) <- paste0("LSI_", seq_len(ncol(mat_svd)))
+#' @keywords internal
+svd_lsi <- function (sp_mat, num_dim, mat_only = T)
+{
+  svd <- irlba::irlba(sp_mat, num_dim, num_dim)
+  svdDiag <- matrix(0, nrow = num_dim, ncol = num_dim)
+  diag(svdDiag) <- svd$d
+  matSVD <- t(svdDiag %*% t(svd$v))
+  rownames(matSVD) <- colnames(sp_mat)
+  colnames(matSVD) <- seq_len(ncol(matSVD))
   if (mat_only) {
-    return(mat_svd)
-  } else {
-    return(list(mat_svd = mat_svd, svd = svd))
+    return(matSVD)
+  }
+  else {
+    return(list(matSVD = matSVD, svd = svd))
   }
 }
 
@@ -358,6 +570,7 @@ svd_lsi <- function(sp_mat, num_dim, mat_only = TRUE) {
 #' @importFrom Seurat FindNeighbors FindClusters Embeddings Reductions Idents DefaultAssay
 #' @importFrom igraph as.igraph set_vertex_attr as_data_frame graph_from_data_frame components V
 #' @export
+#' @keywords internal
 #'
 #' @examples
 #' \dontrun{

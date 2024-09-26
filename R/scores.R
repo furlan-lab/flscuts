@@ -13,7 +13,7 @@
 #' @importFrom Matrix colSums
 #' @importFrom Matrix t
 #' @export
-#'
+#' @keywords internal
 
 estimate_score <- function(cds, marker_set1, fData_col="gene_short_name"){
   cds_marker_set1 = cds[fData(cds)[[fData_col]] %in% marker_set1,]
@@ -59,7 +59,7 @@ estimate_score <- function(cds, marker_set1, fData_col="gene_short_name"){
 #' expression levels
 #' @importFrom Matrix colSums
 #' @export
-#'
+#' @keywords internal
 estimate_corrected_score <- function(cds, marker_set1, fData_col="gene_short_name"){
   set.seed(2019)
   if(!"exprs_bin" %in% colnames(fData(cds))) stop ("No expression binning performed, run m3addon implementation of detect_genes using default settings")

@@ -45,3 +45,4 @@ When using method \code{"totals"}, the sum of the size-factor corrected, log-nor
 \references{
 Puram, S. V. et al. (2017). Single-Cell Transcriptomic Analysis of Primary and Metastatic Tumor Ecosystems in Head and Neck Cancer. \emph{Cell}, 171(7), 1611–1624.e24.
 }
+\keyword{internal}

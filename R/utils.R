@@ -16,7 +16,7 @@
 #'
 #' @importFrom utils read.table
 #' @export
-#'
+#' @keywords internal
 #' @examples
 #' \dontrun{
 #' # Convert a GMT file to a list of gene sets
@@ -406,6 +406,7 @@ fix_assignment <- function(vector) {
 #' @param scramble Logical indicating whether to randomly shuffle the colors. Default is FALSE.
 #' @return A character vector of hex color codes.
 #' @export
+#' @keywords internal
 sfc <- function(n, scramble = FALSE) {
   if (!is.numeric(n) || n <= 0 || n %% 1 != 0) {
     stop("Please input a positive integer for 'n'.")

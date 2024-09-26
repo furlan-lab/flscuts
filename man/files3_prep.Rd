@@ -20,3 +20,4 @@ Identifies the correct path for Cell Ranger output files (matrix.mtx, barcodes.t
 data_folder <- files3_prep("/path/to/cellranger/output")
 }
 }
+\keyword{internal}

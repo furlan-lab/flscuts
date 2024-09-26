@@ -23,3 +23,4 @@ This function reads the H5 file produced by Cell Ranger and constructs a \code{c
 cds <- read_cds_cellranger_h5_file("path/to/filtered_feature_bc_matrix.h5")
 }
 }
+\keyword{internal}

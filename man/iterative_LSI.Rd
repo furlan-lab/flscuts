@@ -2,26 +2,29 @@
 % Please edit documentation in R/clustering.R
 \name{iterative_LSI}
 \alias{iterative_LSI}
-\title{Iterative Latent Semantic Indexing (LSI) for Single-Cell Data}
+\title{Iterative Latent Semantic Indexing (LSI) for Single-Cell Data (Compatible with Monocle3 and Seurat) with optional UMAP}
 \usage{
 iterative_LSI(
   object,
   num_dim = 25,
   starting_features = NULL,
   resolution = c(1e-04, 3e-04, 5e-04),
-  num_features = 3000,
-  exclude_features = NULL,
   do_tf_idf = TRUE,
+  num_features = c(3000, 3000, 3000),
+  exclude_features = NULL,
   binarize = FALSE,
   scale = TRUE,
   log_transform = TRUE,
+  LSI_method = 1,
+  partition_qval = 0.05,
+  seed = 2020,
   scale_to = 10000,
   leiden_k = 20,
   leiden_weight = FALSE,
   leiden_iter = 1,
-  random_seed = 2020,
   verbose = FALSE,
-  return_object = TRUE,
+  return_iterations = FALSE,
+  run_umap = FALS,
   ...
 )
 }
@@ -34,11 +37,11 @@ iterative_LSI(
 
 \item{resolution}{Numeric vector specifying the resolution parameters for Leiden clustering at each iteration. The number of iterations is determined by the length of this vector.}
 
+\item{do_tf_idf}{Logical indicating whether to perform TF-IDF transformation. Default is \code{TRUE}.}
+
 \item{num_features}{Integer or numeric vector specifying the number of features to use for dimensionality reduction at each iteration. If a single integer is provided, it is used for all iterations. Default is 3000.}
 
 \item{exclude_features}{Optional character vector of features (rownames of the data) to exclude from analysis.}
-
-\item{do_tf_idf}{Logical indicating whether to perform TF-IDF transformation. Default is \code{TRUE}.}
 
 \item{binarize}{Logical indicating whether to binarize the data prior to TF-IDF transformation. Default is \code{FALSE}.}
 
@@ -54,13 +57,15 @@ iterative_LSI(
 
 \item{leiden_iter}{Integer specifying the number of iterations for Leiden clustering. Default is 1.}
 
-\item{random_seed}{Integer specifying the random seed for reproducibility. Default is 2020.}
-
 \item{verbose}{Logical indicating whether to display progress messages. Default is \code{FALSE}.}
 
-\item{return_object}{Logical indicating whether to return the updated input object with LSI reduction and clustering results. Default is \code{TRUE}.}
+\item{run_umap}{Logical indicating whether to run UMAP.}
 
 \item{...}{Additional arguments passed to lower-level functions.}
+
+\item{random_seed}{Integer specifying the random seed for reproducibility. Default is 2020.}
+
+\item{return_object}{Logical indicating whether to return the updated input object with LSI reduction and clustering results. Default is \code{TRUE}.}
 }
 \value{
 If \code{return_object} is \code{TRUE}, returns the updated input object (Monocle3 `cell_data_set` or Seurat object) with LSI reduction and clustering results added. If \code{FALSE}, returns a list with elements:

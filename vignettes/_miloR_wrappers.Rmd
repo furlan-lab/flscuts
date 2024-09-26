@@ -1,0 +1,193 @@
+---
+title: "How to use flscuts miloR wrappers"
+output: html_document
+date: "2024-09-23"
+always_allow_html: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+rm(list=ls())
+# Define dataset paths depending on your machine
+if (grepl("^gizmo", Sys.info()["nodename"])) {
+  ROOT_DIR1 <- "NA"
+} else {
+  ROOT_DIR1 <- "/Users/sfurlan/Library/CloudStorage/OneDrive-SharedLibraries-FredHutchinsonCancerCenter/Furlan_Lab - General/experiments"
+}
+stem <- "Pitt/Pitt_2"
+
+DATA_DIR <- file.path(ROOT_DIR1,  stem, "data")      # SPECIFY HERE
+RES_DIR  <- file.path(ROOT_DIR1, stem, "res")     # SPECIFY HERE
+RMD_DIR  <- file.path(ROOT_DIR1, stem, "rmd")     # SPECIFY HERE
+CDS_DIR <- file.path(ROOT_DIR1,  stem, "cds")
+FIG_DIR <- file.path(ROOT_DIR1,  stem, "figs")
+
+```
+
+
+## **Installing flscuts**
+
+First, ensure you have the `devtools` R package installed, which allows you to install packages from GitHub. If `devtools` is installed, you can easily install using the following command:
+
+```{r, eval=F}
+devtools::install_github("furlan-lab/flscuts")
+```
+
+## **Loading data**
+
+In this section, we’ll load a Seurat object and create some colors:  
+- **Dataset (`seu`)**: Contains the data you want to run miloR on.  
+
+
+```{r}
+# Load required packages
+suppressPackageStartupMessages({
+  library(flscuts)
+  library(viewmastR)
+    library(Seurat)
+    library(scCustomize)
+    library(magrittr)
+    library(miloR)
+    library(scater)
+})
+
+set.seed(1234) # Set Seed
+#devtools::install_github("broadinstitute/infercnv", force=TRUE)
+
+group_cols<-c("Pre_Ifng_1_BM" = "#594286", 
+                "Post_Ifng_1_BM" = "#bd9895", 
+                "Pre_Ifng_1_34" = "#f76b14", 
+                "Post_Ifng_1_34" = "#20B2AA", 
+                "Pre_Ifng_5_BM" = "orange", 
+                "Post_Ifng_5_BM" = "grey", 
+                "Pre_Ifng_7_BM" = "violetred4", 
+                "Post_Ifng_7_BM" = "lightgreen")
+
+seu <- readRDS(file.path(CDS_DIR, "230808_Pitt2_seu5_Obj.RDS"))
+seu <- seu[,seu$celltype %in% c("01_HSC", "04_Myeloid_Progenitor",  "02_Early_Erythroid")]
+DimPlot(seu, group.by = "geno_5")
+seu <- seu[,seu$geno_5 %in% "1"]
+seu$rx <- strsplit(colnames(seu), "_") %>% sapply("[[", 1)
+DimPlot(seu, group.by="rx")
+DimPlot(seu, group.by = "celltype")
+```
+
+Next we run the make_nhoods function.  This turns a seurat object into a SingleCellExperiment object and does the necessary calculation of neighborhoods.  Make sure you have the default assay set to "RNA"
+Also make sure your factor levels are "clean".  In the code above we removed all celltypes except the 3 listed.  You will note that doing so doesn't reset the factor levels, so make sure to refactor.  Also make sure your variables are all factors
+
+```{r}
+seu$celltype<- factor(as.character(seu$celltype))
+#roxygen2::roxygenise()
+DefaultAssay(seu)<-"RNA"
+seu$rx <- factor(seu$rx)
+
+scm <- make_nhoods(seu, variable="rx", covariate1 = "celltype")
+undebug(miloR::countCells)
+debug(test_nhoods)
+da_result <- test_nhoods(scm, "~rx+celltype")
+scm$design
+
+debug(testNhoods)
+
+testNhoods(
+    scm[["milo"]],
+    design = as.formula("~rx+celltype"),
+    design.df = scm[["design"]]
+  )
+
+```
+
+## **Finding Common Features**
+
+The performance of viewmastR is enhanced when the features (genes) are consistent between the query and reference datasets. We’ll now identify and select highly variable genes in both datasets and find the common genes to use for training the model.
+
+```{r}
+# Calculate and plot gene dispersion in query dataset
+seu <- calculate_gene_dispersion(seu)
+plot_gene_dispersion(seu)
+seu <- select_genes(seu, top_n = 10000, logmean_ul = -1, logmean_ll = -8)
+plot_gene_dispersion(seu)
+vgq <- get_selected_genes(seu)
+
+# Repeat the process for the reference dataset
+seur <- calculate_gene_dispersion(seur)
+plot_gene_dispersion(seur)
+seur <- select_genes(seur, top_n = 10000, logmean_ul = -1, logmean_ll = -8)
+plot_gene_dispersion(seur)
+vgr <- get_selected_genes(seur)
+
+# Find common genes
+vg <- intersect(vgq, vgr)
+```
+
+## **Visualizing Reference Cell Types**
+
+Next, we visualize the reference dataset to see the known cell type classifications that viewmastR will use to train its model.
+
+```{r}
+DimPlot(seur, group.by = "SFClassification", cols = seur@misc$colors)
+```
+
+## **Running viewmastR**
+
+Now we run viewmastR to predict cell types in the query dataset. This function will learn from the reference dataset's cell type annotations and apply its knowledge to classify the query cells.
+
+```{r}
+seu <- viewmastR(seu, seur, ref_celldata_col = "SFClassification", selected_genes = vg, max_epochs = 4)
+```
+
+## **Visualizing Predictions**
+
+After running viewmastR, we can visualize the predicted cell types for the query dataset.
+
+```{r}
+DimPlot(seu, group.by = "viewmastR_pred", cols = seur@misc$colors)
+```
+
+## **Evaluating Model Accuracy with a Confusion Matrix**
+
+We can further evaluate the accuracy of viewmastR's predictions by comparing them to the ground truth labels (approximated earlier) using a confusion matrix.
+
+```{r}
+confusion_matrix(pred = factor(seu$viewmastR_pred), gt = factor(seu$ground_truth), cols = seur@misc$colors)
+```
+
+## **Analyzing Training Performance**
+
+ViewmastR can also return a detailed training history, including metrics like training loss and validation loss over time. This helps diagnose overfitting or underfitting during model training.
+
+To access these metrics, you need to set the `return_type` parameter to `"list"`. Here's an example of how to retrieve and plot the training data:
+
+```{r}
+# Run viewmastR with return_type = "list"
+output_list <- viewmastR(seu, seur, ref_celldata_col = "SFClassification", selected_genes = vg, return_type = "list")
+
+# Plot training data
+plot_training_data(output_list)
+```
+
+We can now visualize how the training and validation losses change over the epochs. If the training loss keeps decreasing while the validation loss plateaus or increases, it may indicate overfitting.
+
+```{r}
+plt <- plot_training_data(output_list)
+plt
+```
+
+## **Probabilities**
+
+Finally, we can also look at prediction probabilities using the return_probs argument.  Doing so will add meta-data columns to the object prefixed with the string "probs_" for each class of prediction.  The values are transformed log-odds from the model prediction transformed using the `plogis` function in R.
+
+```{r}
+seu <- viewmastR(seu, seur, ref_celldata_col = "SFClassification", selected_genes = vg, backend = "candle", max_epochs = 4, return_probs = T)
+FeaturePlot_scCustom(seu, features = "prob_14_B")
+FeaturePlot_scCustom(seu, features = "prob_16_CD8.N")
+```
+
+
+## **Appendix**
+
+```{r}
+sessionInfo()
+getwd()
+```

@@ -2,16 +2,14 @@
 % Please edit documentation in R/clustering.R
 \name{tf_idf_transform}
 \alias{tf_idf_transform}
-\title{TF-IDF Transformation}
+\title{Performs TF-IDF transformation on a cell_data_set}
 \usage{
-tf_idf_transform(mat)
+tf_idf_transform(input, method = 1, verbose = T)
 }
 \arguments{
-\item{mat}{A sparse matrix.}
-}
-\value{
-A sparse matrix after TF-IDF transformation.
+\item{cds_list}{Input cell_data_set object or sparse matrix.}
 }
 \description{
-Performs TF-IDF transformation on a matrix.
+Just like it sounds.
 }
+\keyword{internal}

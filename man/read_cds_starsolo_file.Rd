@@ -23,3 +23,4 @@ This function reads the STARsolo output files and constructs a \code{cell_data_s
 cds <- read_cds_starsolo_file("path/to/STARsolo/output")
 }
 }
+\keyword{internal}

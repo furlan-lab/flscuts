@@ -22,3 +22,4 @@ Geneset scores are a score calculated for each single cell derived from more tha
 In this implementation, the sum of the size-factor corrected, log-normalized gene expression for a give set of genes
 is performed
 }
+\keyword{internal}

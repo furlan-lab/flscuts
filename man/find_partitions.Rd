@@ -58,3 +58,4 @@ seurat_obj <- find_partitions(seurat_obj, method = "leiden", k = 20, reduction =
 # The partitions can be accessed via seurat_obj$partitions
 }
 }
+\keyword{internal}

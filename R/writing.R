@@ -15,7 +15,7 @@
 #'
 #' @importFrom data.table fwrite
 #' @importFrom Matrix summary
-#'
+#' @keywords internal
 #' @return This function does not return a value. It writes a file as a side effect.
 #' @export
 #' @examples
@@ -180,54 +180,5 @@ export_seurat_to_10x <- function(seurat_obj, assay = "RNA", dir, include_reducti
 
   message("Export completed.")
 }
-
-#' Write a compressed MatrixMarket file
-#'
-#' This function writes a sparse matrix in the MatrixMarket format to a compressed `.gz` file.
-#' The function handles both real and integer matrix types.
-#'
-#' @param x A sparse matrix (typically a \code{dgCMatrix} or \code{ngCMatrix} object).
-#' @param file A character string specifying the output file name, which will be compressed into `.gz` format.
-#'
-#' @details
-#' This function writes the matrix in the MatrixMarket coordinate format.
-#' It first writes the header indicating the matrix type and size, and then appends the matrix data.
-#' If the matrix is an `ngCMatrix`, it is treated as an integer matrix, otherwise as a real matrix.
-#' The function compresses the output into a `.gz` file.
-#'
-#' @importFrom data.table fwrite
-#' @importFrom Matrix summary
-#'
-#' @return This function does not return a value. It writes a file as a side effect.
-#' @export
-#' @examples
-#' \dontrun{
-#' library(Matrix)
-#' m <- Matrix(c(0, 1, 0, 2), 2, 2, sparse = TRUE)
-#' writeMMgz(m, "matrix.mtx.gz")
-#' }
-writeMMgz <- function(x, file) {
-  mtype <- "real"
-  if (is(x, "ngCMatrix")) {
-    mtype <- "integer"
-  }
-  writeLines(
-    c(
-      sprintf("%%%%MatrixMarket matrix coordinate %s general", mtype),
-      sprintf("%s %s %s", x@Dim[1], x@Dim[2], length(x@x))
-    ),
-    gzfile(file)
-  )
-  fwrite(
-    x = summary(x),
-    file = file,
-    append = TRUE,
-    sep = " ",
-    row.names = FALSE,
-    col.names = FALSE
-  )
-}
-
-
 
 

@@ -33,7 +33,7 @@
 #' @importFrom monocle3 colData
 #' @importFrom methods is
 #' @export
-#'
+#' @keywords internal
 #' @examples
 #' # Assuming `cds` is a cell_data_set object, and `genes` is a vector of gene identifiers
 #' # plot_grouped_geneset(cds, marker_set = genes, name = "MyGeneset", by = "cell_type")
@@ -133,7 +133,7 @@ plot_grouped_geneset <- function(cds,
 #' @importFrom monocle3 colData plot_cells
 #' @importFrom methods is
 #' @export
-#'
+#' @keywords internal
 #' @examples
 #' # Assuming `cds` is a cell_data_set object, and `genes` is a vector of gene identifiers
 #' # plot_geneset(cds, marker_set = genes, name = "MyGeneset")

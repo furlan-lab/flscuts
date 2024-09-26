@@ -77,3 +77,4 @@ Geneset scores are calculated per cell based on a set of genes. When using metho
 \references{
 Puram, S. V. et al. (2017). Single-Cell Transcriptomic Analysis of Primary and Metastatic Tumor Ecosystems in Head and Neck Cancer. \emph{Cell}, 171(7), 1611–1624.e24.
 }
+\keyword{internal}

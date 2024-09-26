@@ -14,7 +14,7 @@
 #' @importFrom Matrix sparseMatrix
 #' @importFrom monocle3 new_cell_data_set
 #' @export
-#'
+#' @keywords internal
 #' @examples
 #' \dontrun{
 #' cds <- read_cds_cellranger_h5_file("path/to/filtered_feature_bc_matrix.h5")
@@ -98,7 +98,7 @@ read_cds_cellranger_h5_file <- function(h5_file) {
 #' @importFrom data.table fread
 #' @importFrom monocle3 new_cell_data_set
 #' @export
-#'
+#' @keywords internal
 #' @examples
 #' \dontrun{
 #' cds <- read_cds_starsolo_file("path/to/STARsolo/output")
@@ -180,7 +180,7 @@ read_cds_starsolo_file <- function(folder) {
 #' @return The path to the folder containing the data files. If no files are found, returns \code{NULL}.
 #'
 #' @export
-#'
+#' @keywords internal
 #' @examples
 #' \dontrun{
 #' data_folder <- files3_prep("/path/to/cellranger/output")

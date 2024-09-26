@@ -44,12 +44,14 @@ make_nhoods <- function(seu,
   if (!all(c(variable, covariate1, covariate2) %in% colnames(seu@meta.data))) {
     stop("variable, covariate1, or covariate2 not found in meta data")
   }
+  message("Sanitizing Seurat Object")
+  seu@meta.data <- seu@meta.data[,colnames(seu@meta.data) %in% c(variable, covariate1, covariate2)]
   message("Making SCE Object")
   sce <- SingleCellExperiment::SingleCellExperiment(
     assays = list(counts = seu@assays[[assay]]$counts)
   )
-  SingleCellExperiment::colData(sce) <- S4Vectors::DataFrame(seu@meta.data)
-  SingleCellExperiment::rowData(sce) <- S4Vectors::DataFrame(
+  SummarizedExperiment::colData(sce) <- S4Vectors::DataFrame(seu@meta.data)
+  SummarizedExperiment::rowData(sce) <- S4Vectors::DataFrame(
     symbol = rownames(seu),
     row.names = rownames(seu)
   )
@@ -64,15 +66,18 @@ make_nhoods <- function(seu,
   if (plot) {
     miloR::plotNhoodSizeHist(sce_milo)
   }
+
+  cell_distributions
+  #sce_milo$celltype
   sce_milo <- miloR::countCells(
     sce_milo,
     meta.data = data.frame(SingleCellExperiment::colData(sce_milo)),
-    samples = covariate1
+    samples = cell_distributions
   )
   message("Making Design Matrix")
   design <- data.frame(SingleCellExperiment::colData(sce_milo))[, c(covariate1, variable, covariate2)]
   design <- dplyr::distinct(design)
-  rownames(design) <- design[[covariate1]]
+  rownames(design) <- as.character(apply(design, 1, function(row) paste0(row, collapse="_")))
   message("Calculating NHood Distance")
   sce_milo <- miloR::calcNhoodDistance(sce_milo, d = d, reduced.dim = "PCA")
   message("Building Neighborhood Graph")
@@ -244,3 +249,4 @@ find_markers <- function(all_results,
     return(markers)
   }
 }
+

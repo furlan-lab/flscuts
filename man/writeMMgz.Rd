@@ -5,8 +5,6 @@
 \title{Write a compressed MatrixMarket file}
 \usage{
 writeMMgz(x, file)
-
-writeMMgz(x, file)
 }
 \arguments{
 \item{x}{A sparse matrix (typically a \code{dgCMatrix} or \code{ngCMatrix} object).}
@@ -15,22 +13,12 @@ writeMMgz(x, file)
 }
 \value{
 This function does not return a value. It writes a file as a side effect.
-
-This function does not return a value. It writes a file as a side effect.
 }
 \description{
 This function writes a sparse matrix in the MatrixMarket format to a compressed `.gz` file.
 The function handles both real and integer matrix types.
-
-This function writes a sparse matrix in the MatrixMarket format to a compressed `.gz` file.
-The function handles both real and integer matrix types.
 }
 \details{
-This function writes the matrix in the MatrixMarket coordinate format.
-It first writes the header indicating the matrix type and size, and then appends the matrix data.
-If the matrix is an `ngCMatrix`, it is treated as an integer matrix, otherwise as a real matrix.
-The function compresses the output into a `.gz` file.
-
 This function writes the matrix in the MatrixMarket coordinate format.
 It first writes the header indicating the matrix type and size, and then appends the matrix data.
 If the matrix is an `ngCMatrix`, it is treated as an integer matrix, otherwise as a real matrix.
@@ -42,9 +30,5 @@ library(Matrix)
 m <- Matrix(c(0, 1, 0, 2), 2, 2, sparse = TRUE)
 writeMMgz(m, "matrix.mtx.gz")
 }
-\dontrun{
-library(Matrix)
-m <- Matrix(c(0, 1, 0, 2), 2, 2, sparse = TRUE)
-writeMMgz(m, "matrix.mtx.gz")
 }
-}
+\keyword{internal}

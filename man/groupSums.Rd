@@ -19,3 +19,4 @@ A matrix with rows corresponding to the rows of \code{mat} and columns correspon
 \description{
 Sums the columns of a matrix grouped by a factor, optimized for sparse matrices.
 }
+\keyword{internal}

@@ -1,0 +1,73 @@
+url: https://furlan-lab.github.io/flscuts/
+lang: en
+template:
+  bootstrap: 5
+  bootswatch: minty
+  bslib:
+    heading_font:
+      google:
+        family: Alegreya Sans SC
+        wght: 400
+    base_font:
+      google:
+        family: IBM Plex Sans
+        wght: 200
+    code_font:
+      google: Fira Mono
+authors:
+  Scott Furlan:
+    href: https://furlan-lab.github.io
+navbar:
+  bg: primary
+  structure:
+    right:
+    - search
+    - twitter
+    - github
+  components:
+    twitter:
+      icon: fa-twitter
+      href: http://twitter.com/scottfurlan
+      aria-label: Twitter
+    github:
+      icon: fa-github
+      href: https://github.com/furlan-lab/viewmastR
+      aria-label: GitHub
+figures:
+  message: no
+  warning: no
+  out.width: 100%
+  dev: ragg::agg_png
+  dpi: 96
+  dev.args: []
+  fig.ext: png
+  fig.width: 6
+  fig.height: ~
+  fig.retina: 2
+  fig.asp: 0.7
+  bg: NA
+  other.parameters: []
+reference:
+- title: flscuts
+  desc: Main functions used in flscuts
+  contents:
+  - add_souporcell_seurat
+  - annotate_nhood
+  - iterative_LSI
+  - make_nhoods
+  - project_data
+  - plot_projection
+  - test_nhoods
+  - find_markers
+- title: Additional functions
+  desc: Helper functions to add or modify elements
+  contents:
+  - monocle3_to_seurat
+  - seurat_to_monocle3
+  - files3_prep
+articles:
+- title: Get Started
+  navbar: Get Started
+  contents:
+  - ProjectData
+
