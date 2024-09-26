@@ -45,7 +45,8 @@
   <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
   <div class="dropdown-menu" aria-labelledby="dropdown-articles">
     <h6 class="dropdown-header" data-toc-skip>Get Started</h6>
-    <a class="dropdown-item" href="../articles/ProjectData.html">How to use UMAP transform on a single cell dataset (Seurat) using iterative Latent Semantic Indexing</a>
+    <a class="dropdown-item" href="../articles/ProjectDataLSIWorkflow.html">How to use UMAP transform on a single cell dataset (Seurat) using iterative Latent Semantic Indexing</a>
+    <a class="dropdown-item" href="../articles/ProjectDataSeuratWorkflow.html">How to use UMAP transform on a single cell dataset (Seurat) using Seurat Workflow</a>
   </div>
 </li>
 <li class="nav-item">
@@ -64,7 +65,7 @@
   </a>
 </li>
 <li class="nav-item">
-  <a class="external-link nav-link" href="https://github.com/furlan-lab/viewmastR" aria-label="GitHub">
+  <a class="external-link nav-link" href="https://github.com/furlan-lab/flscuts" aria-label="GitHub">
     <span class="fa fa-github"></span>
      
   </a>
@@ -86,7 +87,7 @@
             <h4 data-toc-skip class="date">2024-09-23</h4>
       
       
-      <div class="d-none name"><code>ProjectData.Rmd</code></div>
+      <div class="d-none name"><code>ProjectDataLSIWorkflow.Rmd</code></div>
     </div>
 
     
@@ -135,7 +136,7 @@ they harmonize, and create some colors.</p>
 <span><span class="va">cols2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"00_PROJECTOR"</span><span class="op">=</span><span class="st">"grey90"</span>, <span class="va">cols1</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://samuel-marsh.github.io/scCustomize/reference/DimPlot_scCustom.html" class="external-link">DimPlot_scCustom</a></span><span class="op">(</span><span class="va">seur</span>, group.by <span class="op">=</span> <span class="st">"celltype"</span>, colors_use <span class="op">=</span> <span class="va">cols1</span><span class="op">)</span><span class="op">+</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_void</a></span><span class="op">(</span><span class="op">)</span><span class="op">+</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">"Reference - aka Projector Dataset"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="ProjectData_files/figure-html/unnamed-chunk-4-1.png" width="100%"></p>
+<p><img src="ProjectDataLSIWorkflow_files/figure-html/unnamed-chunk-4-1.png" width="100%"></p>
 </div>
 <div class="section level4">
 <h4 id="load-query-dataset">Load query dataset<a class="anchor" aria-label="anchor" href="#load-query-dataset"></a>
@@ -143,7 +144,7 @@ they harmonize, and create some colors.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">seu</span> <span class="op">&lt;-</span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">readRDS</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">ROOT_DIR3</span>, <span class="st">"240926_5p_seu.RDS"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://samuel-marsh.github.io/scCustomize/reference/DimPlot_scCustom.html" class="external-link">DimPlot_scCustom</a></span><span class="op">(</span><span class="va">seu</span>, group.by <span class="op">=</span> <span class="st">"celltype"</span>, colors_use <span class="op">=</span> <span class="va">cols1</span><span class="op">)</span><span class="op">+</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_void</a></span><span class="op">(</span><span class="op">)</span><span class="op">+</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">"Query - aka Projectee Dataset"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="ProjectData_files/figure-html/unnamed-chunk-5-1.png" width="100%"></p>
+<p><img src="ProjectDataLSIWorkflow_files/figure-html/unnamed-chunk-5-1.png" width="100%"></p>
 </div>
 </div>
 <div class="section level2">
@@ -165,7 +166,7 @@ query cells are correct.</p>
 <span>    make_unique <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://samuel-marsh.github.io/scCustomize/reference/Clustered_DotPlot.html" class="external-link">Clustered_DotPlot</a></span><span class="op">(</span>seurat_object <span class="op">=</span> <span class="va">seur</span>, features <span class="op">=</span> <span class="va">top_markers</span>, colors_use_idents <span class="op">=</span> <span class="va">cols1</span>, k<span class="op">=</span><span class="fl">11</span>, plot_km_elbow <span class="op">=</span> <span class="cn">F</span><span class="op">)</span></span></code></pre></div>
-<p><img src="ProjectData_files/figure-html/unnamed-chunk-6-1.png" width="100%"></p>
+<p><img src="ProjectDataLSIWorkflow_files/figure-html/unnamed-chunk-6-1.png" width="100%"></p>
 </div>
 <div class="section level4">
 <h4 id="and-the-query">And the query<a class="anchor" aria-label="anchor" href="#and-the-query"></a>
@@ -180,7 +181,7 @@ query cells are correct.</p>
 <span>    make_unique <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://samuel-marsh.github.io/scCustomize/reference/Clustered_DotPlot.html" class="external-link">Clustered_DotPlot</a></span><span class="op">(</span>seurat_object <span class="op">=</span> <span class="va">seur</span>, features <span class="op">=</span> <span class="va">top_markers</span>, colors_use_idents <span class="op">=</span> <span class="va">cols1</span>, k<span class="op">=</span><span class="fl">11</span>, plot_km_elbow <span class="op">=</span> <span class="cn">F</span><span class="op">)</span></span></code></pre></div>
-<p><img src="ProjectData_files/figure-html/unnamed-chunk-7-1.png" width="100%"></p>
+<p><img src="ProjectDataLSIWorkflow_files/figure-html/unnamed-chunk-7-1.png" width="100%"></p>
 </div>
 </div>
 <div class="section level2">
@@ -194,7 +195,7 @@ across the two datasets</p>
 <span><span class="va">seu</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://furlan-lab.github.io/viewmastR/reference/calculate_gene_dispersion.html" class="external-link">calculate_gene_dispersion</a></span><span class="op">(</span><span class="va">seu</span><span class="op">)</span></span>
 <span><span class="va">seu</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://furlan-lab.github.io/viewmastR/reference/select_genes.html" class="external-link">select_genes</a></span><span class="op">(</span><span class="va">seu</span>, top_n <span class="op">=</span> <span class="fl">10000</span>, logmean_ul <span class="op">=</span> <span class="op">-</span><span class="fl">1</span>, logmean_ll <span class="op">=</span> <span class="op">-</span><span class="fl">8</span><span class="op">)</span></span>
 <span><span class="fu">plot_gene_dispersion</span><span class="op">(</span><span class="va">seu</span><span class="op">)</span></span></code></pre></div>
-<p><img src="ProjectData_files/figure-html/unnamed-chunk-8-1.png" width="100%"></p>
+<p><img src="ProjectDataLSIWorkflow_files/figure-html/unnamed-chunk-8-1.png" width="100%"></p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">vgq</span> <span class="op">&lt;-</span> <span class="fu">get_selected_genes</span><span class="op">(</span><span class="va">seu</span><span class="op">)</span></span>
 <span></span>
@@ -202,7 +203,7 @@ across the two datasets</p>
 <span><span class="va">seur</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://furlan-lab.github.io/viewmastR/reference/calculate_gene_dispersion.html" class="external-link">calculate_gene_dispersion</a></span><span class="op">(</span><span class="va">seur</span><span class="op">)</span></span>
 <span><span class="va">seur</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://furlan-lab.github.io/viewmastR/reference/select_genes.html" class="external-link">select_genes</a></span><span class="op">(</span><span class="va">seur</span>, top_n <span class="op">=</span> <span class="fl">10000</span>, logmean_ul <span class="op">=</span> <span class="op">-</span><span class="fl">1</span>, logmean_ll <span class="op">=</span> <span class="op">-</span><span class="fl">8</span><span class="op">)</span></span>
 <span><span class="fu">plot_gene_dispersion</span><span class="op">(</span><span class="va">seur</span><span class="op">)</span></span></code></pre></div>
-<p><img src="ProjectData_files/figure-html/unnamed-chunk-8-2.png" width="100%"></p>
+<p><img src="ProjectDataLSIWorkflow_files/figure-html/unnamed-chunk-8-2.png" width="100%"></p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">vgr</span> <span class="op">&lt;-</span> <span class="fu">get_selected_genes</span><span class="op">(</span><span class="va">seur</span><span class="op">)</span></span>
 <span></span>
@@ -237,7 +238,7 @@ UMAP model to the object.</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">p1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/DimPlot.html" class="external-link">DimPlot</a></span><span class="op">(</span><span class="va">seur</span>, group.by <span class="op">=</span> <span class="st">"celltype"</span>, cols <span class="op">=</span> <span class="va">cols1</span><span class="op">)</span><span class="op">+</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_void</a></span><span class="op">(</span><span class="op">)</span><span class="op">+</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">"Reference - aka Projector Dataset after LSI/UMAP"</span><span class="op">)</span></span>
 <span><span class="va">p1</span></span></code></pre></div>
-<p><img src="ProjectData_files/figure-html/unnamed-chunk-10-1.png" width="100%"></p>
+<p><img src="ProjectDataLSIWorkflow_files/figure-html/unnamed-chunk-10-1.png" width="100%"></p>
 <p>Next we take the “projectee”, (aka the query data we want to project)
 and the “projector” aka reference and run the following function which
 creates an output containing the coordinates for how the cells from the
@@ -249,12 +250,12 @@ seen</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">p2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plot_projection.html">plot_projection</a></span><span class="op">(</span><span class="va">res</span>, <span class="va">seur</span>, <span class="va">seu</span>, projectee_col <span class="op">=</span> <span class="st">"celltype"</span><span class="op">)</span><span class="op">+</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_color_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="va">cols2</span><span class="op">)</span><span class="op">+</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_void</a></span><span class="op">(</span><span class="op">)</span><span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/guides.html" class="external-link">guides</a></span><span class="op">(</span>color <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/guide_legend.html" class="external-link">guide_legend</a></span><span class="op">(</span>override.aes <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">3</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">p2</span></span></code></pre></div>
-<p><img src="ProjectData_files/figure-html/unnamed-chunk-12-1.png" width="100%"></p>
+<p><img src="ProjectDataLSIWorkflow_files/figure-html/unnamed-chunk-12-1.png" width="100%"></p>
 <p>Side by side this looks pretty good with the exception of Tregs,
 which get a bit lost.</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">cowplot</span><span class="fu">::</span><span class="fu"><a href="https://wilkelab.org/cowplot/reference/plot_grid.html" class="external-link">plot_grid</a></span><span class="op">(</span><span class="va">p1</span>, <span class="va">p2</span><span class="op">)</span></span></code></pre></div>
-<p><img src="ProjectData_files/figure-html/unnamed-chunk-13-1.png" width="100%"></p>
+<p><img src="ProjectDataLSIWorkflow_files/figure-html/unnamed-chunk-13-1.png" width="100%"></p>
 </div>
 <div class="section level2">
 <h2 id="appendix">
