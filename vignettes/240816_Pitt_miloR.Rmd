@@ -1,0 +1,153 @@
+---
+title: "Run Hooke"
+author: "SNF"
+date: "8-14-24"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+editor_options: 
+  chunk_output_type: console
+---
+
+
+## Load Data
+
+```{r, warning=FALSE, message=FALSE, warning=FALSE, echo=F}
+graphics.off()
+rm(list=ls())
+knitr::opts_chunk$set(fig.width=8, fig.height=6,dpi=300, echo=FALSE, warning=FALSE, message=FALSE)
+knitr::opts_chunk$set(dev.args=list(bg="transparent"))
+ROOT_DIR<-"/fh/fast/furlan_s/user/sbhise"
+stem<-"Pitt_2"
+
+
+DATA_DIR <- file.path(ROOT_DIR,  stem, "data")      # SPECIFY HERE
+RES_DIR  <- file.path(ROOT_DIR, stem, "res")     # SPECIFY HERE
+RMD_DIR  <- file.path(ROOT_DIR, stem, "rmd")     # SPECIFY HERE
+CDS_DIR <- file.path(ROOT_DIR,  stem, "cds")
+FIG_DIR <- file.path(ROOT_DIR,  stem, "figs")
+
+
+suppressPackageStartupMessages({
+    library(viewmastR)
+    library(openxlsx)  
+    library(dplyr)
+    library(ggplot2)
+    library(pals)
+    library(RColorBrewer)
+    library(knitr)
+    library(Seurat)
+    library(scCustomize)
+    library(ComplexHeatmap)
+    library(viridis)
+    library(magrittr)
+    library(pbmcapply)
+    library(scrubletR)
+    library(infercnv)
+    library(SCPA)
+    library(tidyverse)
+    library(ComplexHeatmap)
+    library(circlize)
+    library(magrittr)
+    library(msigdbr)
+    library(cowplot)
+    library(grid)
+    library(gridExtra)
+    library(miloR)
+    library(scater)
+    library(patchwork)
+})
+
+set.seed(1234) # Set Seed
+#devtools::install_github("broadinstitute/infercnv", force=TRUE)
+
+group_cols<-c("Pre_Ifng_1_BM" = "#594286", 
+                "Post_Ifng_1_BM" = "#bd9895", 
+                "Pre_Ifng_1_34" = "#f76b14", 
+                "Post_Ifng_1_34" = "#20B2AA", 
+                "Pre_Ifng_5_BM" = "orange", 
+                "Post_Ifng_5_BM" = "grey", 
+                "Pre_Ifng_7_BM" = "violetred4", 
+                "Post_Ifng_7_BM" = "lightgreen")
+```
+
+
+## milo
+
+```{r}
+#library(SingleCellExperiment)
+#BiocManager::install("miloR")
+
+seu <- readRDS(file.path(CDS_DIR, "Patient_5_final_CDS.RDS"))
+seu <- seu[,seu$celltype %in% c("01_HSC", "04_Myeloid_Progenitor",  "02_Early_Erythroid")]
+seu <- seu[,seu$geno %in% "2"]
+seu$sample<-sample(c(1:2), dim(seu)[2], replace=T)
+seu$sample <- paste0(seu$sample, "_", seu$treat)
+seu$sample<-factor(seu$sample)
+seu <- ScaleData(seu) %>% RunPCA(features = VariableFeatures(object = seu), npcs = 50) %>%
+    FindNeighbors(dims = 1:40) %>% FindClusters(resolution = 0.3) %>% RunUMAP( dims = 1:40) 
+sce <- SingleCellExperiment(seu@assays$RNA$counts)
+colData(sce)<-DataFrame(seu@meta.data)
+rowData(sce)<-DataFrame(symbol=rownames(seu), row.names=rownames(seu))
+reducedDims(sce) <- list(PCA=seu@reductions$pca@cell.embeddings, UMAP=seu@reductions$umap@cell.embeddings)
+plotUMAP(sce, colour_by="treat")
+plotUMAP(sce, colour_by="celltype")
+sce_milo <- Milo(sce)
+sce_milo <- buildGraph(sce_milo, k = 10, d = 30)
+sce_milo <- makeNhoods(sce_milo, prop = 0.1, k = 10, d=30, refined = TRUE)
+plotNhoodSizeHist(sce_milo)
+
+sce_milo <- countCells(sce_milo, meta.data = data.frame(colData(sce_milo)), samples="sample")
+head(nhoodCounts(sce_milo))
+design <- data.frame(colData(sce_milo))[,c("sample", "treat")]
+## Convert batch info from integer to factor
+design <- distinct(design)
+rownames(design) <- design$sample
+sce_milo <- calcNhoodDistance(sce_milo, d=30, reduced.dim = "PCA")
+sce_milo <- buildNhoodGraph(sce_milo)
+da_results <- testNhoods(sce_milo, design = ~ treat, design.df = design)
+ggplot(da_results, aes(PValue)) + geom_histogram(bins=50)
+## Plot single-cell UMAP
+umap_pl <- plotReducedDim(sce_milo, dimred = "UMAP", colour_by="celltype", text_by = "celltype", text_size = 3) +
+  guides(fill="none")
+## Plot neighbourhood graph
+nh_graph_pl <- plotNhoodGraphDA(sce_milo, da_results, layout="UMAP",alpha=0.05)
+
+umap_pl + nh_graph_pl +
+  plot_layout(guides="collect")
+
+ggplot(da_results, aes(logFC, -log10(SpatialFDR))) +
+  geom_point() +
+  geom_hline(yintercept = 1) ## Mark significance threshold (10% FDR)
+
+da_results <- annotateNhoods(sce_milo, da_results, coldata_col = "celltype")
+head(da_results)
+ggplot(da_results, aes(celltype_fraction)) + geom_histogram(bins=50)
+da_results$celltype <- ifelse(da_results$celltype_fraction < 0.7, "Mixed", da_results$celltype)
+plotDAbeeswarm(da_results, group.by = "celltype")
+
+logcounts(sce_milo) <- log1p(sce_milo@assays@data[[1]])
+counts(sce_milo) <- sce_milo@assays@data[[1]]
+dge_smp <- findNhoodMarkers(sce_milo, da_results,
+                                     assay = "counts", gene.offset = FALSE, da.fdr = 0.01,
+                                     aggregate.samples = TRUE, sample_col = "sample",
+                                     subset.nhoods = da_results$celltype %in% c("04_Myeloid_Progenitor")
+                                     )
+#table(sce$celltype)
+markers <- dge_smp[which(dge_smp$adj.P.Val_1 < 0.01 ), "GeneID"]
+logcounts(sce_milo) <- log1p(counts(sce_milo))
+sce_milo <- calcNhoodExpression(sce_milo, subset.row=markers)
+
+plotNhoodExpressionDA(sce_milo, da_results, features = markers,
+                      subset.nhoods = da_results$celltype %in% c("04_Myeloid_Progenitor"),
+                      assay="logcounts",
+                      scale_to_1 = TRUE, cluster_features = TRUE
+                      )
+```
+
+### Appendix
+```{r Appendix,echo=FALSE}
+sessionInfo()
+getwd()
+```
