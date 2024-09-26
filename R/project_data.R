@@ -225,7 +225,7 @@ project_data <- function(
 #' @param fill_output Logical, whether to return the `subject` object filled with zeros for features in `query` that are not found in `subject`. Default is `TRUE`.
 #' @param ignore_strand Logical, whether to ignore strand information in range-based searches. Default is `TRUE`.
 #' @param verbose Logical, whether to print verbose output. Default is `TRUE`.
-#'
+#' @keywords internal
 #' @return A list containing:
 #' - `mat`: A matrix of the extracted data.
 #' - `overlap`: The ratio of features found in the `subject` compared to the `query`.
@@ -581,7 +581,7 @@ safe_subset<-function (mat = NULL, subsetRows = NULL, subsetCols = NULL)
 #' @description
 #' Adapted from: Jeffrey M. Granja, M. Ryan Corces, Sarah E. Pierce, S. Tansu Bagdatli, Hani Choudhry, Howard Y. Chang, William J. Greenleaf
 #' doi: https://doi.org/10.1101/2020.04.28.066498
-#'
+#' @keywords internal
 #' @export
 get_assay<-function (se = NULL, assayName = NULL)
 {

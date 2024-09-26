@@ -362,6 +362,7 @@ add_souporcell_seurat <- function(
   return(seurat_obj)
 }
 
+#' @keywords internal
 #' Helper function for add_souporcell_seurat
 fix_assignment <- function(vector) {
   vector[grepl("\\/", vector)] <- "Multiplet"

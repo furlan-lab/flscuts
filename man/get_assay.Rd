@@ -10,3 +10,4 @@ get_assay(se = NULL, assayName = NULL)
 Adapted from: Jeffrey M. Granja, M. Ryan Corces, Sarah E. Pierce, S. Tansu Bagdatli, Hani Choudhry, Howard Y. Chang, William J. Greenleaf
 doi: https://doi.org/10.1101/2020.04.28.066498
 }
+\keyword{internal}

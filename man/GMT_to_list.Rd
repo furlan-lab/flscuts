@@ -30,3 +30,4 @@ This function reads the GMT file line by line, splits each line by tabs, and ext
 gene_sets <- GMT_to_list("path/to/your/file.gmt")
 }
 }
+\keyword{internal}

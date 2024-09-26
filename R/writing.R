@@ -80,7 +80,7 @@ writeMMgz <- function(x, file) {
 #' @importFrom methods is
 #' @export
 #' @return The function does not return a value. It writes several files as a side effect.
-#'
+#' @keywords internal
 #' @examples
 #' \dontrun{
 #' library(Seurat)

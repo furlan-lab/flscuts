@@ -7,7 +7,7 @@ pkgdown::build_article(name = "ProjectData")
 pkgdown::preview_page("articles/ProjectData")
 
 # cleanup start -----------------------------------------------------------
-pkgdown::clean_site(pkg = ".") 
+pkgdown::clean_site(pkg = ".")
 pkgdown::init_site(pkg = ".")
 
 # index -------------------------------------------------------------------
@@ -35,3 +35,4 @@ pkgdown::build_site(install=F)
 
 pkgdown::deploy_to_branch()
 
+roxygen2::roxygenise()

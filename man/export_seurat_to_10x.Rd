@@ -49,3 +49,4 @@ export_seurat_to_10x(seurat_obj, assay = "RNA", dir = "output_directory", includ
 export_seurat_to_10x(seurat_obj, assay = "RNA", dir = "output_directory", include_reductions = FALSE)
 }
 }
+\keyword{internal}

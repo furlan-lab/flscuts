@@ -38,3 +38,4 @@ A list containing:
 \description{
 This function extracts data from a `SummarizedExperiment`-like object or a Seurat object using features specified in the `query`. Features can be identified by either name (annotation-based) or genomic ranges (range-based).
 }
+\keyword{internal}
