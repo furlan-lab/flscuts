@@ -9,7 +9,7 @@ version 0.1.0
 
 A repository for coding shortcuts
 
-**Visit [HowTo](https://furlan-lab.github.io/flscuts/) for installation instructions and tutorials**
+**Visit [Homepage](https://furlan-lab.github.io/flscuts/) for installation instructions and tutorials**
 
 ## Acknowledgements
 

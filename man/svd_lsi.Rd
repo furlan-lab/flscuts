@@ -14,7 +14,7 @@ svd_lsi(sp_mat, num_dim, mat_only = T)
 \item{mat_only}{Logical indicating whether to return only the transformed matrix. Default is TRUE.}
 }
 \value{
-If `mat_only` is TRUE, returns the transformed matrix; otherwise, returns a list containing the matrix and SVD components.
+If \code{mat_only} is TRUE, returns the transformed matrix; otherwise, returns a list containing the matrix and SVD components.
 }
 \description{
 Computes Singular Value Decomposition (SVD) on a term-frequency matrix for dimensionality reduction.

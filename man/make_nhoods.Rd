@@ -38,8 +38,8 @@ make_nhoods(
 \value{
 A list containing:
 \describe{
-  \item{milo}{A Milo object with neighborhoods constructed.}
-  \item{design}{A data frame representing the design matrix for differential testing.}
+\item{milo}{A Milo object with neighborhoods constructed.}
+\item{design}{A data frame representing the design matrix for differential testing.}
 }
 }
 \description{

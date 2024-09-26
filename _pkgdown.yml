@@ -31,7 +31,7 @@ navbar:
       aria-label: Twitter
     github:
       icon: fa-github
-      href: https://github.com/furlan-lab/viewmastR
+      href: https://github.com/furlan-lab/flscuts
       aria-label: GitHub
 figures:
   message: no
@@ -69,5 +69,6 @@ articles:
 - title: Get Started
   navbar: Get Started
   contents:
-  - ProjectData
+  - ProjectDataLSIWorkflow
+  - ProjectDataSeuratWorkflow
 

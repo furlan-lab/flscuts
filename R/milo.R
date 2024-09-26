@@ -67,12 +67,10 @@ make_nhoods <- function(seu,
     miloR::plotNhoodSizeHist(sce_milo)
   }
 
-  cell_distributions
-  #sce_milo$celltype
   sce_milo <- miloR::countCells(
     sce_milo,
     meta.data = data.frame(SingleCellExperiment::colData(sce_milo)),
-    samples = cell_distributions
+    samples = variable
   )
   message("Making Design Matrix")
   design <- data.frame(SingleCellExperiment::colData(sce_milo))[, c(covariate1, variable, covariate2)]

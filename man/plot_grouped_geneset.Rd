@@ -59,8 +59,8 @@ plot_grouped_geneset(
 \value{
 If \code{return_values} is \code{TRUE}, a list with elements:
 \describe{
-  \item{\code{plot}}{The ggplot object.}
-  \item{\code{scores}}{A data frame containing the geneset scores and grouping variables.}
+\item{\code{plot}}{The ggplot object.}
+\item{\code{scores}}{A data frame containing the geneset scores and grouping variables.}
 }
 If \code{return_values} is \code{FALSE}, only the ggplot object is returned.
 }

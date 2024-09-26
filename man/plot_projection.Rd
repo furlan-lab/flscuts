@@ -13,18 +13,18 @@ plot_projection(
 )
 }
 \arguments{
-\item{projection}{A list or `SimpleList` containing the UMAP coordinates of the projected data. Typically, this is the output from the `project_data` function.}
+\item{projection}{A list or \code{SimpleList} containing the UMAP coordinates of the projected data. Typically, this is the output from the \code{project_data} function.}
 
-\item{projector}{The original single-cell object (Monocle3 `cell_data_set` or Seurat object) used to generate the UMAP embedding.}
+\item{projector}{The original single-cell object (Monocle3 \code{cell_data_set} or Seurat object) used to generate the UMAP embedding.}
 
-\item{projectee}{The single-cell object (Monocle3 `cell_data_set` or Seurat object) that was projected into the UMAP space.}
+\item{projectee}{The single-cell object (Monocle3 \code{cell_data_set} or Seurat object) that was projected into the UMAP space.}
 
 \item{projector_col}{Optional character string specifying the column name in the projector's metadata to use for coloring the data points.}
 
 \item{projectee_col}{Optional character string specifying the column name in the projectee's metadata to use for coloring the data points.}
 }
 \value{
-A `ggplot` object visualizing the projection.
+A \code{ggplot} object visualizing the projection.
 }
 \description{
 This function visualizes the projection of data from one single-cell object onto the UMAP embedding of another object. It allows for coloring the projected data points based on metadata from either the projector or projectee object.

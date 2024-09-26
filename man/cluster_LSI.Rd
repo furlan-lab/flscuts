@@ -16,7 +16,7 @@ cluster_LSI(
 )
 }
 \arguments{
-\item{object}{The `cell_data_set` or Seurat object upon which to perform this operation.}
+\item{object}{The \code{cell_data_set} or Seurat object upon which to perform this operation.}
 
 \item{k}{Integer number of nearest neighbors to use when creating the k nearest neighbor graph for Leiden clustering. Default is 20.}
 
@@ -33,7 +33,7 @@ cluster_LSI(
 \item{partition_qval}{Numeric, the q-value cutoff to determine when to partition. Default is 0.05.}
 }
 \description{
-This function extracts clustering from the last iteration of LSI (see \code{iterative_LSI}) in a single-cell experiment. It uses Leiden clustering and computes partitions. Compatible with both Monocle3 `cell_data_set` and Seurat objects.
+This function extracts clustering from the last iteration of LSI (see \code{iterative_LSI}) in a single-cell experiment. It uses Leiden clustering and computes partitions. Compatible with both Monocle3 \code{cell_data_set} and Seurat objects.
 }
 \references{
 Granja, J. M.et al. (2019). Single-cell multiomic analysis identifies regulatory programs in mixed-phenotype acute leukemia. Nature Biotechnology, 37(12), 1458–1465.

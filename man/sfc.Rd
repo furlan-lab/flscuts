@@ -25,26 +25,26 @@ Creates a color palette of specified length, optionally scrambled.
 #' @return A hex color string representing the adjusted color.
 #' @export
 lighten_darken_color <- function(col, amt) {
-  if (substring(col, 1, 1) == "#") {
-    col <- substring(col, 2)
-  }
-  num <- as.integer(paste0("0x", col))
-  r <- (num >> 16) & 0xFF
-  g <- (num >> 8) & 0xFF
-  b <- num & 0xFF
+if (substring(col, 1, 1) == "#") {
+col <- substring(col, 2)
+}
+num <- as.integer(paste0("0x", col))
+r <- (num >> 16) & 0xFF
+g <- (num >> 8) & 0xFF
+b <- num & 0xFF
 
-  adjust <- function(x) {
-    x <- x + amt
-    x <- max(min(255, x), 0)
-    return(x)
-  }
+adjust <- function(x) {
+x <- x + amt
+x <- max(min(255, x), 0)
+return(x)
+}
 
-  r <- adjust(r)
-  g <- adjust(g)
-  b <- adjust(b)
+r <- adjust(r)
+g <- adjust(g)
+b <- adjust(b)
 
-  new_col <- sprintf("#%02X%02X%02X", r, g, b)
-  return(new_col)
+new_col <- sprintf("#\%02X\%02X\%02X", r, g, b)
+return(new_col)
 }
 }
 \keyword{internal}

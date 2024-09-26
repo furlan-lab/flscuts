@@ -24,12 +24,12 @@ This function exports data from a Seurat object into a 10X Genomics-style format
 \details{
 The function creates several files in a subdirectory called \code{"export"} within the specified directory:
 \itemize{
-  \item \code{matrix.mtx.gz}: A compressed Matrix Market file containing the assay data (expression matrix).
-  \item \code{features.tsv.gz}: A tab-separated file with feature (gene) information, including gene IDs and names.
-  \item \code{barcodes.tsv.gz}: A tab-separated file with cell barcodes.
-  \item \code{metadata.csv}: A CSV file containing metadata from the Seurat object.
-  \item \code{<reduction>_embeddings.tsv.gz}: A compressed file with cell embeddings for each reduction (e.g., UMAP, PCA), if \code{include_reductions} is set to \code{TRUE}.
-  \item \code{variable_features.tsv.gz}: A compressed file listing the variable features.
+\item \code{matrix.mtx.gz}: A compressed Matrix Market file containing the assay data (expression matrix).
+\item \code{features.tsv.gz}: A tab-separated file with feature (gene) information, including gene IDs and names.
+\item \code{barcodes.tsv.gz}: A tab-separated file with cell barcodes.
+\item \code{metadata.csv}: A CSV file containing metadata from the Seurat object.
+\item \code{<reduction>_embeddings.tsv.gz}: A compressed file with cell embeddings for each reduction (e.g., UMAP, PCA), if \code{include_reductions} is set to \code{TRUE}.
+\item \code{variable_features.tsv.gz}: A compressed file listing the variable features.
 }
 
 If reductions (like UMAP or PCA) are present in the Seurat object and \code{include_reductions} is \code{TRUE}, the cell embeddings from each reduction will be written to separate files in the format \code{<reduction>_embeddings.tsv.gz}.

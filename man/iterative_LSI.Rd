@@ -29,7 +29,7 @@ iterative_LSI(
 )
 }
 \arguments{
-\item{object}{A Monocle3 `cell_data_set` object or a Seurat object.}
+\item{object}{A Monocle3 \code{cell_data_set} object or a Seurat object.}
 
 \item{num_dim}{Integer specifying the number of principal components to use in downstream analysis. Default is 25.}
 
@@ -68,18 +68,20 @@ iterative_LSI(
 \item{return_object}{Logical indicating whether to return the updated input object with LSI reduction and clustering results. Default is \code{TRUE}.}
 }
 \value{
-If \code{return_object} is \code{TRUE}, returns the updated input object (Monocle3 `cell_data_set` or Seurat object) with LSI reduction and clustering results added. If \code{FALSE}, returns a list with elements:
+If \code{return_object} is \code{TRUE}, returns the updated input object (Monocle3 \code{cell_data_set} or Seurat object) with LSI reduction and clustering results added. If \code{FALSE}, returns a list with elements:
 \describe{
-  \item{\code{lsi_embeddings}}{The final LSI embeddings.}
-  \item{\code{clusters}}{The clustering assignments.}
-  \item{\code{iterations}}{A list containing intermediate results from each iteration.}
+\item{\code{lsi_embeddings}}{The final LSI embeddings.}
+\item{\code{clusters}}{The clustering assignments.}
+\item{\code{iterations}}{A list containing intermediate results from each iteration.}
 }
 }
 \description{
-This function performs iterative LSI on single-cell data to minimize batch effects and accentuate cell type differences. It can accept either a Monocle3 `cell_data_set` object or a Seurat object as input. The function iteratively:
-1. Applies TF-IDF transformation and Singular Value Decomposition (SVD) to normalize the data.
-2. Clusters the normalized data using Leiden clustering in high-dimensional space.
-3. Identifies over-represented features in the resulting clusters using a simple counting method.
+This function performs iterative LSI on single-cell data to minimize batch effects and accentuate cell type differences. It can accept either a Monocle3 \code{cell_data_set} object or a Seurat object as input. The function iteratively:
+\enumerate{
+\item Applies TF-IDF transformation and Singular Value Decomposition (SVD) to normalize the data.
+\item Clusters the normalized data using Leiden clustering in high-dimensional space.
+\item Identifies over-represented features in the resulting clusters using a simple counting method.
+}
 
 These steps are repeated, using features identified in step 3 to subset the normalization matrix in step 1, and the process is repeated for a specified number of iterations. This method is inspired by Granja et al. (2019) and aims to enhance the separation of cell types while reducing batch effects.
 }

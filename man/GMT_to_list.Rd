@@ -18,9 +18,9 @@ This function reads a Gene Matrix Transposed (GMT) file and converts it into a l
 \details{
 The GMT file format is commonly used for storing gene sets, such as those provided by MSigDB. Each line in a GMT file corresponds to a gene set and is formatted as follows:
 \enumerate{
-  \item Gene set name
-  \item Description (can be empty)
-  \item Gene symbols (tab-separated)
+\item Gene set name
+\item Description (can be empty)
+\item Gene symbols (tab-separated)
 }
 This function reads the GMT file line by line, splits each line by tabs, and extracts the gene set name and the list of genes.
 }

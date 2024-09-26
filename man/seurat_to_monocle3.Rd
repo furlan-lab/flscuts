@@ -21,13 +21,13 @@ seurat_to_monocle3(
 \item{monocle_reduction}{The name to assign to the reduction in the Monocle3 object (e.g., \code{"UMAP"}). Use \code{NULL} to skip transferring reductions. Default is \code{"UMAP"}.}
 }
 \value{
-A Monocle3 `cell_data_set` object.
+A Monocle3 \code{cell_data_set} object.
 }
 \description{
-Converts a Seurat object into a Monocle3 `cell_data_set` object. Optionally, dimensionality reduction embeddings can be transferred.
+Converts a Seurat object into a Monocle3 \code{cell_data_set} object. Optionally, dimensionality reduction embeddings can be transferred.
 }
 \details{
-This function converts a Seurat object into a Monocle3 `cell_data_set` object by extracting the counts data, cell metadata, and gene metadata. It can also transfer dimensionality reduction embeddings from the Seurat object to the Monocle3 object if specified.
+This function converts a Seurat object into a Monocle3 \code{cell_data_set} object by extracting the counts data, cell metadata, and gene metadata. It can also transfer dimensionality reduction embeddings from the Seurat object to the Monocle3 object if specified.
 }
 \examples{
 \dontrun{

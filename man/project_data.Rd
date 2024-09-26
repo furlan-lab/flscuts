@@ -21,38 +21,38 @@ project_data(
 )
 }
 \arguments{
-\item{projector}{A `cell_data_set` or Seurat object containing a reduced dimension matrix (e.g., LSI) and the model used to generate a UMAP embedding.}
+\item{projector}{A \code{cell_data_set} or Seurat object containing a reduced dimension matrix (e.g., LSI) and the model used to generate a UMAP embedding.}
 
-\item{projectee}{A `SummarizedExperiment`, `cell_data_set`, or Seurat object that will be projected into the UMAP space defined by the projector.}
+\item{projectee}{A \code{SummarizedExperiment}, \code{cell_data_set}, or Seurat object that will be projected into the UMAP space defined by the projector.}
 
-\item{ncells_coembedding}{Numeric, the number of cells to use from the `projector` for co-embedding with the pseudo-single cells. Default is 5000, or the total number of cells if less than 5000.}
+\item{ncells_coembedding}{Numeric, the number of cells to use from the \code{projector} for co-embedding with the pseudo-single cells. Default is 5000, or the total number of cells if less than 5000.}
 
-\item{scale}{Logical, whether to scale the projected data after projection. Default is `FALSE`.}
+\item{scale}{Logical, whether to scale the projected data after projection. Default is \code{FALSE}.}
 
 \item{reduced_dim}{Character, specifies the reduced dimension method (e.g., "LSI" or "PCA"). Default is "LSI".}
 
 \item{embedding}{Character, specifies the embedding type to be used (currently only "UMAP" supported). Default is "UMAP".}
 
-\item{make_pseudo_single_cells}{Logical, whether to simulate pseudo-single cells from the `projectee` data, useful for bulk data. Default is `FALSE`.}
+\item{make_pseudo_single_cells}{Logical, whether to simulate pseudo-single cells from the \code{projectee} data, useful for bulk data. Default is \code{FALSE}.}
 
-\item{features}{Character vector, specifying whether the projection should be based on "annotation-based" or "range-based" features. Default is `c("annotation-based", "range-based")`.}
+\item{features}{Character vector, specifying whether the projection should be based on "annotation-based" or "range-based" features. Default is \code{c("annotation-based", "range-based")}.}
 
-\item{n}{Integer, the number of subsampled "pseudo single cells" per bulk sample, relevant when `make_pseudo_single_cells` is `TRUE`. Default is 250.}
+\item{n}{Integer, the number of subsampled "pseudo single cells" per bulk sample, relevant when \code{make_pseudo_single_cells} is \code{TRUE}. Default is 250.}
 
-\item{verbose}{Logical, whether to print verbose output during execution. Default is `TRUE`.}
+\item{verbose}{Logical, whether to print verbose output during execution. Default is \code{TRUE}.}
 
 \item{threads}{Integer, the number of threads for parallel execution. Default is 6.}
 
 \item{seed}{Integer, seed for reproducibility. Default is 2020.}
 
-\item{force}{Logical, whether to continue even if the overlap ratio of features between the `projector` and `projectee` is below a certain threshold. Default is `FALSE`.}
+\item{force}{Logical, whether to continue even if the overlap ratio of features between the \code{projector} and \code{projectee} is below a certain threshold. Default is \code{FALSE}.}
 }
 \value{
-A `SimpleList` object containing the UMAP coordinates of the projected data (both original single-cell and simulated bulk data) and the reduced dimension matrix.
+A \code{SimpleList} object containing the UMAP coordinates of the projected data (both original single-cell and simulated bulk data) and the reduced dimension matrix.
 }
 \description{
 This function projects data from one single-cell object (or a similar structure) into the UMAP embedding of another object. The embedding must be precomputed using methods such as LSI or PCA. This allows for co-embedding of new data into an existing embedding space.
 }
 \details{
-The function supports projections using models built from UMAP embeddings, which are ideal for comparing single-cell data, and can also simulate pseudo-single cells for bulk data. It is adapted from: *ArchR: An integrative and scalable software package for single-cell chromatin accessibility analysis* by Granja et al. (2020).
+The function supports projections using models built from UMAP embeddings, which are ideal for comparing single-cell data, and can also simulate pseudo-single cells for bulk data. It is adapted from: \emph{ArchR: An integrative and scalable software package for single-cell chromatin accessibility analysis} by Granja et al. (2020).
 }

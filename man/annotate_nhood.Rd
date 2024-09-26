@@ -26,9 +26,9 @@ annotate_nhood(
 \value{
 A list containing:
 \describe{
-  \item{milo}{The updated Milo object.}
-  \item{da_results}{The annotated differential abundance results.}
-  \item{design}{The design matrix used for differential testing.}
+\item{milo}{The updated Milo object.}
+\item{da_results}{The annotated differential abundance results.}
+\item{design}{The design matrix used for differential testing.}
 }
 }
 \description{

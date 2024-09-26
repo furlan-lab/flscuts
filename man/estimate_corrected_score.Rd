@@ -33,7 +33,7 @@ and consequently would be expected to have higher cell scores for any gene-set. 
 this effect we also add a control gene-set (Gjcont); we calculate a similar cell score with the
 control gene-set and subtract it from the initial cell scores:
 
-SCj(i) = average[Er(Gj,i)] – average[Er(Gjcont,i)].
+SCj(i) = average\link{Er(Gj,i)} – average\link{Er(Gjcont,i)}.
 
 The control gene-set is selected in a way that ensures similar properties (distribution of expression levels)
 to that of the input gene-set to properly control for the effect of complexity. First, all analyzed genes

@@ -18,7 +18,7 @@ add_souporcell_seurat(
 \arguments{
 \item{seurat_obj}{A Seurat object.}
 
-\item{souporcell_file}{Path to the Souporcell `clusters.tsv` file.}
+\item{souporcell_file}{Path to the Souporcell \code{clusters.tsv} file.}
 
 \item{prefix}{Optional prefix to prepend to cell barcodes.}
 
@@ -37,7 +37,7 @@ A Seurat object with the added assay, dimensionality reduction, and updated meta
 }
 \description{
 This function adds an assay to a Seurat object based on Souporcell clustering results.
-The assay contains log-transformed and normalized cluster probabilities from the Souporcell `clusters.tsv` file.
+The assay contains log-transformed and normalized cluster probabilities from the Souporcell \code{clusters.tsv} file.
 Principal Component Analysis (PCA) is performed on these probabilities, and the resulting components are added as a dimensionality reduction object.
 The Souporcell 'assignment' is added to the Seurat object's metadata under the specified label.
 Optionally, assignments can be renamed to be 1-indexed and multiplets collapsed into a single category.

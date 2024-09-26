@@ -15,7 +15,7 @@ monocle3_to_seurat(
 )
 }
 \arguments{
-\item{cds}{A Monocle3 `cell_data_set` object to convert.}
+\item{cds}{A Monocle3 \code{cell_data_set} object to convert.}
 
 \item{assay_name}{A character string specifying the assay name for the Seurat object. Default is \code{"RNA"}.}
 
@@ -33,10 +33,10 @@ monocle3_to_seurat(
 A Seurat object.
 }
 \description{
-Converts a Monocle3 `cell_data_set` object into a Seurat object. Optionally, dimensionality reduction embeddings can be transferred.
+Converts a Monocle3 \code{cell_data_set} object into a Seurat object. Optionally, dimensionality reduction embeddings can be transferred.
 }
 \details{
-This function converts a Monocle3 `cell_data_set` object into a Seurat object by extracting the counts data, cell metadata, and feature metadata. It can also transfer dimensionality reduction embeddings from the Monocle3 object to the Seurat object if specified.
+This function converts a Monocle3 \code{cell_data_set} object into a Seurat object by extracting the counts data, cell metadata, and feature metadata. It can also transfer dimensionality reduction embeddings from the Monocle3 object to the Seurat object if specified.
 }
 \examples{
 \dontrun{

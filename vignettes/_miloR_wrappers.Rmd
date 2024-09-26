@@ -64,10 +64,10 @@ group_cols<-c("Pre_Ifng_1_BM" = "#594286",
                 "Pre_Ifng_7_BM" = "violetred4", 
                 "Post_Ifng_7_BM" = "lightgreen")
 
-seu <- readRDS(file.path(CDS_DIR, "230808_Pitt2_seu5_Obj.RDS"))
+seu <- readRDS(file.path(CDS_DIR, "Patient_1_final_CDS.RDS"))
 seu <- seu[,seu$celltype %in% c("01_HSC", "04_Myeloid_Progenitor",  "02_Early_Erythroid")]
-DimPlot(seu, group.by = "geno_5")
-seu <- seu[,seu$geno_5 %in% "1"]
+DimPlot(seu, group.by = "geno")
+seu <- seu[,seu$geno %in% "1"]
 seu$rx <- strsplit(colnames(seu), "_") %>% sapply("[[", 1)
 DimPlot(seu, group.by="rx")
 DimPlot(seu, group.by = "celltype")
@@ -82,9 +82,12 @@ seu$celltype<- factor(as.character(seu$celltype))
 DefaultAssay(seu)<-"RNA"
 seu$rx <- factor(seu$rx)
 
-scm <- make_nhoods(seu, variable="rx", covariate1 = "celltype")
+scm <- make_nhoods(seu, variable="rx")
+debug(make_nhoods)
 undebug(miloR::countCells)
 debug(test_nhoods)
+scm$design <- 
+
 da_result <- test_nhoods(scm, "~rx+celltype")
 scm$design
 

@@ -15,27 +15,29 @@ extract_data(
 )
 }
 \arguments{
-\item{query}{A vector of feature names (for annotation-based search) or a `GRanges` object (for range-based search).}
+\item{query}{A vector of feature names (for annotation-based search) or a \code{GRanges} object (for range-based search).}
 
-\item{subject}{A `SummarizedExperiment` or Seurat object from which to extract the data.}
+\item{subject}{A \code{SummarizedExperiment} or Seurat object from which to extract the data.}
 
-\item{annotation}{Character, specifies the target feature column in `subject` to search for features. Default is "row.names".}
+\item{annotation}{Character, specifies the target feature column in \code{subject} to search for features. Default is "row.names".}
 
-\item{verbose}{Logical, whether to print verbose output. Default is `TRUE`.}
+\item{verbose}{Logical, whether to print verbose output. Default is \code{TRUE}.}
 
-\item{fill_output}{Logical, whether to return the `subject` object filled with zeros for features in `query` that are not found in `subject`. Default is `TRUE`.}
+\item{fill_output}{Logical, whether to return the \code{subject} object filled with zeros for features in \code{query} that are not found in \code{subject}. Default is \code{TRUE}.}
 
 \item{duplicate_hits}{Character, specifies how to resolve multiple hits in range-based searches. Options are: "max.mean", "max.var", "max.disp", "min.mean", "min.var", "min.disp". Default is "max.disp".}
 
-\item{ignore_strand}{Logical, whether to ignore strand information in range-based searches. Default is `TRUE`.}
+\item{ignore_strand}{Logical, whether to ignore strand information in range-based searches. Default is \code{TRUE}.}
 }
 \value{
 A list containing:
-- `mat`: A matrix of the extracted data.
-- `overlap`: The ratio of features found in the `subject` compared to the `query`.
-- `not_found`: Features not found in the `subject`.
+\itemize{
+\item \code{mat}: A matrix of the extracted data.
+\item \code{overlap}: The ratio of features found in the \code{subject} compared to the \code{query}.
+\item \code{not_found}: Features not found in the \code{subject}.
+}
 }
 \description{
-This function extracts data from a `SummarizedExperiment`-like object or a Seurat object using features specified in the `query`. Features can be identified by either name (annotation-based) or genomic ranges (range-based).
+This function extracts data from a \code{SummarizedExperiment}-like object or a Seurat object using features specified in the \code{query}. Features can be identified by either name (annotation-based) or genomic ranges (range-based).
 }
 \keyword{internal}
