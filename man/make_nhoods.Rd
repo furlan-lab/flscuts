@@ -11,9 +11,8 @@ make_nhoods(
   d = 30,
   prop = 0.1,
   variable = NULL,
-  covariate1 = NULL,
-  covariate2 = NULL,
-  make_dummy = FALSE,
+  samples = NULL,
+  covariate = NULL,
   plot = TRUE
 )
 }
@@ -30,9 +29,9 @@ make_nhoods(
 
 \item{variable}{Character string specifying the column in metadata by which to measure differential abundance.}
 
-\item{covariate1}{Character string specifying the column in metadata representing samples or a primary covariate.}
+\item{samples}{Character string specifying the column in metadata representing samples or a primary covariate.}
 
-\item{covariate2}{Character string specifying the column in metadata representing batch or a secondary covariate.}
+\item{covariate}{Character string specifying the column in metadata representing batch or a secondary covariate.}
 
 \item{plot}{Logical indicating whether to plot the neighborhood size histogram. Default is TRUE.}
 }
@@ -52,6 +51,6 @@ counts cells within neighborhoods, and prepares a design matrix for differential
 }
 \examples{
 # Example usage:
-# result <- make_nhoods(seu, variable="condition", covariate1="sample_id", covariate2="batch")
+# result <- make_nhoods(seu, variable="condition", samples="sample_id", covariate="batch")
 
 }
