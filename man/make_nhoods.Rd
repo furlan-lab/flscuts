@@ -13,6 +13,7 @@ make_nhoods(
   variable = NULL,
   covariate1 = NULL,
   covariate2 = NULL,
+  make_dummy = FALSE,
   plot = TRUE
 )
 }

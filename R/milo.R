@@ -40,12 +40,33 @@ make_nhoods <- function(seu,
                         variable = NULL,
                         covariate1 = NULL,
                         covariate2 = NULL,
+                        make_dummy = FALSE,
                         plot = TRUE) {
   if (!all(c(variable, covariate1, covariate2) %in% colnames(seu@meta.data))) {
     stop("variable, covariate1, or covariate2 not found in meta data")
   }
+  if (!is.null(covariate1) & !is.null(covariate2) & make_dummy){
+    stop("covariates supplied, but instructed to make a dummy variable, resolve...")
+  }
+  if(make_dummy){
+      name_attempt <- "sample"
+      counter <- 1
+      repeat{
+        if(!name_attempt %in% colnames(seu@meta.data)){
+          break
+        } else {
+          name_attempt <- paste0(sample, counter)
+          counter <- counter +1
+        }
+      }
+    seu[[name_attempt]]<-sample(c(1:2), dim(seu)[2], replace=T)
+    seu[[name_attempt]] <- paste0(seu$sample, "_", seu$treat)
+    seu[[name_attempt]]<-factor(seu[[name_attempt]])
+  } else {
+    name_attempt <- "000000"
+  }
   message("Sanitizing Seurat Object")
-  seu@meta.data <- seu@meta.data[,colnames(seu@meta.data) %in% c(variable, covariate1, covariate2)]
+  seu@meta.data <- seu@meta.data[,colnames(seu@meta.data) %in% c(variable, covariate1, covariate2, name_attempt), drop = F]
   message("Making SCE Object")
   sce <- SingleCellExperiment::SingleCellExperiment(
     assays = list(counts = seu@assays[[assay]]$counts)
@@ -73,7 +94,7 @@ make_nhoods <- function(seu,
     samples = variable
   )
   message("Making Design Matrix")
-  design <- data.frame(SingleCellExperiment::colData(sce_milo))[, c(covariate1, variable, covariate2)]
+  design <- data.frame(SingleCellExperiment::colData(sce_milo))[, c(covariate1, variable, covariate2, name_attempt), drop = F]
   design <- dplyr::distinct(design)
   rownames(design) <- as.character(apply(design, 1, function(row) paste0(row, collapse="_")))
   message("Calculating NHood Distance")
