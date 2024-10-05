@@ -103,6 +103,50 @@ umap_pl1 + umap_pl2 + nh_graph_pl +
   plot_layout(guides="collect")
 ```
 
+
+```{r}
+
+scm <- annotate_nhood(scm, da_result, celltype_var = "celltype")
+
+plotDAbeeswarm(scm$da_results, group.by = "celltype")
+
+markers <- find_markers(scm, "sample", "celltype")
+
+plotNhoodExpressionDA(scm$milo, scm$da_results, features = markers,
+                      subset.nhoods = scm$da_results$celltype %in% c("04_Myeloid_Progenitor"),
+                      assay="logcounts",
+                      scale_to_1 = TRUE, cluster_features = TRUE
+                      )
+
+gene <- "ELANE"
+FeaturePlot_scCustom(seu, gene)
+VlnPlot_scCustom(seu, features = gene, group.by = "treat")
+
+seu$celltype_rx <- paste0(seu$celltype, "_", seu$rx)
+levels(factor(seu$celltype_rx))
+Idents(seu)<-seu$celltype_rx
+hscM <- FindMarkers(seu, ident.1 = "01_HSC_Post", ident.2 = "01_HSC_Pre" )
+mpM <- FindMarkers(seu, ident.1 = "04_Myeloid_Progenitor_Post", ident.2 = "04_Myeloid_Progenitor_Pre" )
+
+#hscM$diff <- hscM$pct.1 - hscM$pct.2
+#hscM <- hscM[order(-hscM$diff),] %>% dplyr::filter(p_val_adj < 0.05)
+#mpM$diff <- mpM$pct.1 - mpM$pct.2
+#mpM <- mpM[order(-mpM$diff),] %>% dplyr::filter(p_val_adj < 0.05)
+table(rownames(hscM) %in% rownames(mpM))
+
+install.packages("pathfindR")
+BiocManager::install("org.Hs.eg.db")
+
+
+```
+
+
+```{r}
+library(pathfindR)
+output_df <- run_pathfindR(data.frame(Gene_symbol = rownames(mpM), logFC = mpM$avg_log2FC, FDR_p = mpM$p_val_adj))
+```
+
+
 ## **Appendix**
 
 ```{r}
