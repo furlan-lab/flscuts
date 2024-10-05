@@ -12,7 +12,7 @@
 #' @param samples Character string specifying the column in metadata representing samples or a primary covariate.
 #' @param covariate Character string specifying the column in metadata representing batch or a secondary covariate.
 #' @param plot Logical indicating whether to plot the neighborhood size histogram. Default is TRUE.
-#'
+#' @export
 #' @return A list containing:
 #' \describe{
 #'   \item{milo}{A Milo object with neighborhoods constructed.}
