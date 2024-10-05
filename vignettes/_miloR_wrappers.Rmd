@@ -11,16 +11,18 @@ editor_options:
 rm(list=ls())
 # Define dataset paths depending on your machine
 if (grepl("^gizmo", Sys.info()["nodename"])) {
-  ROOT_DIR1 <- "NA"
+  ROOT_DIR1 <- "/fh/fast/furlan_s/user/sbhise"
+  stem <- "Pitt_2"
 } else {
   ROOT_DIR1 <- "/Users/sfurlan/Library/CloudStorage/OneDrive-SharedLibraries-FredHutchinsonCancerCenter/Furlan_Lab - General/experiments"
+  stem <- "Pitt/Pitt_2"
 }
-stem <- "Pitt/Pitt_2"
+
 
 DATA_DIR <- file.path(ROOT_DIR1,  stem, "data")      # SPECIFY HERE
 RES_DIR  <- file.path(ROOT_DIR1, stem, "res")     # SPECIFY HERE
 RMD_DIR  <- file.path(ROOT_DIR1, stem, "rmd")     # SPECIFY HERE
-CDS_DIR <- file.path(ROOT_DIR1,  stem, "cds")
+CDS_DIR <- file.path(ROOT_DIR1,  stem, "cds/final")
 FIG_DIR <- file.path(ROOT_DIR1,  stem, "figs")
 
 ```
@@ -50,6 +52,7 @@ suppressPackageStartupMessages({
     library(magrittr)
     library(miloR)
     library(scater)
+  library(patchwork)
 })
 
 set.seed(1234) # Set Seed
@@ -66,125 +69,81 @@ group_cols<-c("Pre_Ifng_1_BM" = "#594286",
 
 seu <- readRDS(file.path(CDS_DIR, "Patient_1_final_CDS.RDS"))
 seu <- seu[,seu$celltype %in% c("01_HSC", "04_Myeloid_Progenitor",  "02_Early_Erythroid")]
-DimPlot(seu, group.by = "geno")
+#downsample
+seu <- seu[,sample(1:dim(seu)[2], 2000)]
+#DimPlot(seu, group.by = "geno")
 seu <- seu[,seu$geno %in% "1"]
 seu$rx <- strsplit(colnames(seu), "_") %>% sapply("[[", 1)
-DimPlot(seu, group.by="rx")
-DimPlot(seu, group.by = "celltype")
+#DimPlot(seu, group.by="rx")
+#DimPlot(seu, group.by = "celltype")
 ```
 
 Next we run the make_nhoods function.  This turns a seurat object into a SingleCellExperiment object and does the necessary calculation of neighborhoods.  Make sure you have the default assay set to "RNA"
 Also make sure your factor levels are "clean".  In the code above we removed all celltypes except the 3 listed.  You will note that doing so doesn't reset the factor levels, so make sure to refactor.  Also make sure your variables are all factors
 
 ```{r}
-seu$celltype<- factor(as.character(seu$celltype))
+#seu$celltype<- factor(as.character(seu$celltype))
+
 #roxygen2::roxygenise()
 DefaultAssay(seu)<-"RNA"
-seu$rx <- factor(seu$rx)
 
-scm <- make_nhoods(seu, variable="rx")
-debug(make_nhoods)
-undebug(miloR::countCells)
-debug(test_nhoods)
-scm$design <- 
+seud <- make_dummy_variable(seu, joining_variable = "rx")
+scm <- make_nhoods(seud, variable="rx", sample = "sample")
+da_result <- test_nhoods(scm, "~rx")
 
-da_result <- test_nhoods(scm, "~rx+celltype")
-scm$design
+ggplot(da_result, aes(PValue)) + geom_histogram(bins=50)
 
-debug(testNhoods)
+umap_pl1 <- plotReducedDim(scm$milo, dimred = "UMAP", colour_by="rx") +
+  guides(fill="none")+theme_void()
+umap_pl2 <- plotReducedDim(scm$milo, dimred = "UMAP", colour_by="celltype") +
+  guides(fill="none")+theme_void()+scale_color_manual(values=sfc(10))
+nh_graph_pl <- plotNhoodGraphDA(scm$milo, da_result, layout="UMAP",alpha=0.05)
 
-testNhoods(
-    scm[["milo"]],
-    design = as.formula("~rx+celltype"),
-    design.df = scm[["design"]]
-  )
+umap_pl1 + umap_pl2 + nh_graph_pl +
+  plot_layout(guides="collect")
+```
+
+
+```{r}
+
+scm <- annotate_nhood(scm, da_result, celltype_var = "celltype")
+
+plotDAbeeswarm(scm$da_results, group.by = "celltype")
+
+markers <- find_markers(scm, "sample", "celltype")
+
+plotNhoodExpressionDA(scm$milo, scm$da_results, features = markers,
+                      subset.nhoods = scm$da_results$celltype %in% c("04_Myeloid_Progenitor"),
+                      assay="logcounts",
+                      scale_to_1 = TRUE, cluster_features = TRUE
+                      )
+
+gene <- "ELANE"
+FeaturePlot_scCustom(seu, gene)
+VlnPlot_scCustom(seu, features = gene, group.by = "treat")
+
+seu$celltype_rx <- paste0(seu$celltype, "_", seu$rx)
+levels(factor(seu$celltype_rx))
+Idents(seu)<-seu$celltype_rx
+hscM <- FindMarkers(seu, ident.1 = "01_HSC_Post", ident.2 = "01_HSC_Pre" )
+mpM <- FindMarkers(seu, ident.1 = "04_Myeloid_Progenitor_Post", ident.2 = "04_Myeloid_Progenitor_Pre" )
+
+#hscM$diff <- hscM$pct.1 - hscM$pct.2
+#hscM <- hscM[order(-hscM$diff),] %>% dplyr::filter(p_val_adj < 0.05)
+#mpM$diff <- mpM$pct.1 - mpM$pct.2
+#mpM <- mpM[order(-mpM$diff),] %>% dplyr::filter(p_val_adj < 0.05)
+table(rownames(hscM) %in% rownames(mpM))
+
+install.packages("pathfindR")
+BiocManager::install("org.Hs.eg.db")
+
 
 ```
 
-## **Finding Common Features**
-
-The performance of viewmastR is enhanced when the features (genes) are consistent between the query and reference datasets. We’ll now identify and select highly variable genes in both datasets and find the common genes to use for training the model.
 
 ```{r}
-# Calculate and plot gene dispersion in query dataset
-seu <- calculate_gene_dispersion(seu)
-plot_gene_dispersion(seu)
-seu <- select_genes(seu, top_n = 10000, logmean_ul = -1, logmean_ll = -8)
-plot_gene_dispersion(seu)
-vgq <- get_selected_genes(seu)
-
-# Repeat the process for the reference dataset
-seur <- calculate_gene_dispersion(seur)
-plot_gene_dispersion(seur)
-seur <- select_genes(seur, top_n = 10000, logmean_ul = -1, logmean_ll = -8)
-plot_gene_dispersion(seur)
-vgr <- get_selected_genes(seur)
-
-# Find common genes
-vg <- intersect(vgq, vgr)
-```
-
-## **Visualizing Reference Cell Types**
-
-Next, we visualize the reference dataset to see the known cell type classifications that viewmastR will use to train its model.
-
-```{r}
-DimPlot(seur, group.by = "SFClassification", cols = seur@misc$colors)
-```
-
-## **Running viewmastR**
-
-Now we run viewmastR to predict cell types in the query dataset. This function will learn from the reference dataset's cell type annotations and apply its knowledge to classify the query cells.
-
-```{r}
-seu <- viewmastR(seu, seur, ref_celldata_col = "SFClassification", selected_genes = vg, max_epochs = 4)
-```
-
-## **Visualizing Predictions**
-
-After running viewmastR, we can visualize the predicted cell types for the query dataset.
-
-```{r}
-DimPlot(seu, group.by = "viewmastR_pred", cols = seur@misc$colors)
-```
-
-## **Evaluating Model Accuracy with a Confusion Matrix**
-
-We can further evaluate the accuracy of viewmastR's predictions by comparing them to the ground truth labels (approximated earlier) using a confusion matrix.
-
-```{r}
-confusion_matrix(pred = factor(seu$viewmastR_pred), gt = factor(seu$ground_truth), cols = seur@misc$colors)
-```
-
-## **Analyzing Training Performance**
-
-ViewmastR can also return a detailed training history, including metrics like training loss and validation loss over time. This helps diagnose overfitting or underfitting during model training.
-
-To access these metrics, you need to set the `return_type` parameter to `"list"`. Here's an example of how to retrieve and plot the training data:
-
-```{r}
-# Run viewmastR with return_type = "list"
-output_list <- viewmastR(seu, seur, ref_celldata_col = "SFClassification", selected_genes = vg, return_type = "list")
-
-# Plot training data
-plot_training_data(output_list)
-```
-
-We can now visualize how the training and validation losses change over the epochs. If the training loss keeps decreasing while the validation loss plateaus or increases, it may indicate overfitting.
-
-```{r}
-plt <- plot_training_data(output_list)
-plt
-```
-
-## **Probabilities**
-
-Finally, we can also look at prediction probabilities using the return_probs argument.  Doing so will add meta-data columns to the object prefixed with the string "probs_" for each class of prediction.  The values are transformed log-odds from the model prediction transformed using the `plogis` function in R.
-
-```{r}
-seu <- viewmastR(seu, seur, ref_celldata_col = "SFClassification", selected_genes = vg, backend = "candle", max_epochs = 4, return_probs = T)
-FeaturePlot_scCustom(seu, features = "prob_14_B")
-FeaturePlot_scCustom(seu, features = "prob_16_CD8.N")
+library(pathfindR)
+output_df <- run_pathfindR(data.frame(Gene_symbol = rownames(mpM), logFC = mpM$avg_log2FC, FDR_p = mpM$p_val_adj))
 ```
 
 

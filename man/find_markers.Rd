@@ -6,7 +6,7 @@
 \usage{
 find_markers(
   all_results,
-  covariate1,
+  samples,
   celltype_var,
   celltypes = NULL,
   plot = TRUE,
@@ -17,7 +17,7 @@ find_markers(
 \arguments{
 \item{all_results}{A list containing the Milo object, differential abundance results, and design matrix.}
 
-\item{covariate1}{Character string specifying the column in metadata representing samples or a covariate.}
+\item{samples}{Character string specifying the column in metadata representing samples or a covariate.}
 
 \item{celltype_var}{Character string specifying the column in metadata containing cell type annotations.}
 
@@ -40,6 +40,6 @@ This function identifies marker genes for differentially abundant neighborhoods,
 }
 \examples{
 # Example usage:
-# markers <- find_markers(all_results, covariate1 = "sample_id", celltype_var = "cell_type")
+# markers <- find_markers(all_results, samples = "sample_id", celltype_var = "cell_type")
 
 }
