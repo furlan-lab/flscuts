@@ -1,0 +1,86 @@
+---
+title: "How to make flow style plots"
+output: html_document
+date: "2024-10-18"
+always_allow_html: true
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r, echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+rm(list=ls())
+# Define dataset paths depending on your machine
+if(grepl("^gizmo", Sys.info()["nodename"])){
+  ROOT_DIR1<-"/fh/fast/furlan_s/experiments/patient_marrows/aggr/cds/indy"
+  ROOT_DIR2<-"//fh/fast/furlan_s/experiments/patient_marrows"
+} else {
+  ROOT_DIR1<-"/Users/sfurlan/Library/CloudStorage/OneDrive-SharedLibraries-FredHutchinsonCancerCenter/Furlan_Lab - General/experiments/patient_marrows/aggr/cds/indy"
+  ROOT_DIR2<-"/Users/sfurlan/Library/CloudStorage/OneDrive-SharedLibraries-FredHutchinsonCancerCenter/Furlan_Lab - General/experiments/patient_marrows/5336/cds"
+}
+knitr::opts_chunk$set(message= FALSE, warning = FALSE)
+```
+
+## **Installing flscuts**
+
+First, ensure you have the `devtools` R package installed, which allows you to install packages from GitHub. If `devtools` is installed, you can easily install using the following command:
+
+```{r, eval=F}
+devtools::install_github("furlan-lab/flscuts")
+```
+
+## **Loading data**
+
+In this section, we’ll load two Seurat objects, fix the celltypes so they harmonize, and create some colors.
+
+```{r}
+# Load required packages
+suppressPackageStartupMessages({
+  library(flscuts)
+  library(Seurat)
+  library(viewmastR)
+  library(ggplot2)
+  library(scCustomize)
+})
+```
+
+
+#### Load AML dataset and define the leukemia
+```{r}
+seu <- readRDS(file.path(ROOT_DIR1, "220831_NB1.RDS"))
+DimPlot_scCustom(seu, group.by = "geno")
+DimPlot_scCustom(seu, group.by = "seurat_clusters")
+seu$celltype <-as.character(seu$celltype)
+seu$celltype[seu$seurat_clusters %in% c(0,1,5,3,14)]<- "00_LEUMEKIA"
+DimPlot_scCustom(seu, group.by = "celltype")
+```
+
+```{r}
+DefaultAssay(seu)<-"ADT"
+cts <- seu@assays$ADT@counts
+rownames(cts) <- gsub("\\.1", "", rownames(cts))
+rownames(cts)[140] <- "CD15"
+seu$ADT <- CreateAssayObject(cts)
+seu<-NormalizeData(seu, normalization.method = "CLR")
+seu$adt_sum <- colSums(seu@assays$ADT$counts)
+seu$log_adt_sum <- log10(seu$adt_sum)
+aml_panel(seu, color = "celltype", cols = as.character(pals::polychrome(15)))
+```
+
+#### Load ALL dataset and define the leukemia
+```{r}
+seu <- readRDS(file.path(ROOT_DIR2, "KMGall"))
+DimPlot_scCustom(seu, group.by = "geno")
+DimPlot_scCustom(seu, group.by = "seurat_clusters")
+seu$celltype <-as.character(seu$celltype)
+seu$celltype[seu$seurat_clusters %in% c(0,1,5,3,14)]<- "00_LEUMEKIA"
+DimPlot_scCustom(seu, group.by = "celltype")
+```
+
+
+## **Appendix**
+
+```{r}
+sessionInfo()
+getwd()
+```

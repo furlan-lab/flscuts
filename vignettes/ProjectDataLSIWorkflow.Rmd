@@ -1,7 +1,7 @@
 ---
 title: "How to use UMAP transform on a single cell dataset (Seurat) using iterative Latent Semantic Indexing"
 output: html_document
-date: "2024-09-23"
+date: "2024-1-23"
 always_allow_html: true
 editor_options: 
   chunk_output_type: console

@@ -71,4 +71,5 @@ articles:
   contents:
   - ProjectDataLSIWorkflow
   - ProjectDataSeuratWorkflow
+  - LeukemiaFlowPlots
 
