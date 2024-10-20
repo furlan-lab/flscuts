@@ -7,6 +7,9 @@
     <loc>https://furlan-lab.github.io/flscuts/LICENSE.html</loc>
   </url>
   <url>
+    <loc>https://furlan-lab.github.io/flscuts/articles/LeukemiaFlowPlots.html</loc>
+  </url>
+  <url>
     <loc>https://furlan-lab.github.io/flscuts/articles/ProjectDataLSIWorkflow.html</loc>
   </url>
   <url>
@@ -29,6 +32,15 @@
   </url>
   <url>
     <loc>https://furlan-lab.github.io/flscuts/reference/add_souporcell_seurat.html</loc>
+  </url>
+  <url>
+    <loc>https://furlan-lab.github.io/flscuts/reference/adt_dotplot.html</loc>
+  </url>
+  <url>
+    <loc>https://furlan-lab.github.io/flscuts/reference/all_panel.html</loc>
+  </url>
+  <url>
+    <loc>https://furlan-lab.github.io/flscuts/reference/aml_panel.html</loc>
   </url>
   <url>
     <loc>https://furlan-lab.github.io/flscuts/reference/annotate_nhood.html</loc>
@@ -74,6 +86,9 @@
   </url>
   <url>
     <loc>https://furlan-lab.github.io/flscuts/reference/liftover_projection.html</loc>
+  </url>
+  <url>
+    <loc>https://furlan-lab.github.io/flscuts/reference/make_dummy_variable.html</loc>
   </url>
   <url>
     <loc>https://furlan-lab.github.io/flscuts/reference/make_nhoods.html</loc>
