@@ -16,7 +16,7 @@ if(grepl("^gizmo", Sys.info()["nodename"])){
   ROOT_DIR2<-"//fh/fast/furlan_s/experiments/patient_marrows"
 } else {
   ROOT_DIR1<-"/Users/sfurlan/Library/CloudStorage/OneDrive-SharedLibraries-FredHutchinsonCancerCenter/Furlan_Lab - General/experiments/patient_marrows/aggr/cds/indy"
-  ROOT_DIR2<-"/Users/sfurlan/Library/CloudStorage/OneDrive-SharedLibraries-FredHutchinsonCancerCenter/Furlan_Lab - General/experiments/patient_marrows/5336/cds"
+  ROOT_DIR2<-"/Users/sfurlan/Library/CloudStorage/OneDrive-SharedLibraries-FredHutchinsonCancerCenter/Furlan_Lab - General/experiments/patient_marrows/KMG2/cds"
 }
 knitr::opts_chunk$set(message= FALSE, warning = FALSE)
 ```
@@ -70,13 +70,25 @@ aml_panel(seu, color = "celltype", cols = as.character(pals::polychrome(15)))
 #### Load ALL dataset and define the leukemia
 ```{r}
 seu <- readRDS(file.path(ROOT_DIR2, "KMGall"))
-DimPlot_scCustom(seu, group.by = "geno")
-DimPlot_scCustom(seu, group.by = "seurat_clusters")
-seu$celltype <-as.character(seu$celltype)
-seu$celltype[seu$seurat_clusters %in% c(0,1,5,3,14)]<- "00_LEUMEKIA"
+DimPlot_scCustom(seu)
+DimPlot_scCustom(seu, group.by = "partitions")
+seu$celltype <- seu$vmR_pred
+seu$celltype[seu$partitions %in% 6]<- "00_LEUMEKIA"
 DimPlot_scCustom(seu, group.by = "celltype")
+
+
 ```
 
+```{r}
+DefaultAssay(seu)<-"ADT"
+cts <- seu@assays$ADT@counts
+rownames(cts) <- gsub("\\.1", "", rownames(cts))
+seu$ADT <- CreateAssayObject(cts)
+seu<-NormalizeData(seu, normalization.method = "CLR")
+seu$adt_sum <- colSums(seu@assays$ADT$counts)
+seu$log_adt_sum <- log10(seu$adt_sum)
+all_panel(seu, color = "celltype", cols = as.character(pals::polychrome(21)))
+```
 
 ## **Appendix**
 
