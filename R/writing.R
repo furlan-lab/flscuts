@@ -115,10 +115,10 @@ export_seurat_to_10x <- function(seurat_obj, assay = "RNA", dir, include_reducti
 
   # Write matrix.mtx.gz file (expression matrix)
   message("Writing expression matrix...")
+  temp_file <- file.path(out_dir, "temp.mtx")
   matrix_file <- file.path(out_dir, "matrix.mtx.gz")
-  gz1 <- gzfile(matrix_file, "w")
-  Matrix::writeMM(assay_data, file = gz1)
-  close(gz1)
+  Matrix::writeMM(assay_data, file = temp_file)
+  R.utils::gzip(temp_file, destname = matrix_file, remove = TRUE)
 
   # Write features.tsv.gz file (feature/gene information)
   message("Writing feature information...")
