@@ -69,14 +69,17 @@
 #'   resolution = c(0.2, 0.5, 0.8)
 #' )
 #' }
-iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resolution = c(1e-04,
-                                                                                          3e-04, 5e-04), do_tf_idf = TRUE, num_features = c(3000, 3000,
-                                                                                                                                            3000), exclude_features = NULL, binarize = FALSE, scale = TRUE,
-                           log_transform = TRUE, LSI_method = 1, partition_qval = 0.05,
-                           seed = 2020, scale_to = 10000, leiden_k = 20, leiden_weight = FALSE,
-                           leiden_iter = 1, verbose = FALSE, return_iterations = FALSE, run_umap = FALS, ...)
-{
-  # Check object type
+#'
+#'
+iterative_LSI <- function(object, num_dim = 25, starting_features = NULL,
+                          resolution = c(1e-04, 3e-04, 5e-04), do_tf_idf = TRUE,
+                          num_features = c(3000, 3000, 3000), exclude_features = NULL,
+                          binarize = FALSE, scale = TRUE, log_transform = TRUE,
+                          LSI_method = 1, partition_qval = 0.05, seed = 2020,
+                          scale_to = 10000, leiden_k = 20, leiden_weight = FALSE,
+                          leiden_iter = 1, verbose = FALSE, return_iterations = FALSE,
+                          run_umap = FALSE, ...) {
+
   if (is(object, "Seurat")) {
     object_type <- "seurat"
   } else if (is(object, "cell_data_set")) {
@@ -85,32 +88,22 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     stop("The object must be a Seurat object or a Monocle3 cell_data_set object.")
   }
 
-  # Handle starting_features and num_features length
   if (!is.null(starting_features)) {
     if (length(num_features) != length(resolution)) {
       num_features <- c(length(starting_features), num_features)
     }
   }
+
   if (length(num_features) != length(resolution)) {
-    message("Numbers of elements for resolution and num_features do not match. Will use num_features[1]...")
+    message("Numbers of elements for resolution and num_features do not match. Using num_features[1]...")
     num_features <- rep(num_features, length(resolution))
   }
 
-  # Get the expression matrix
   if (!is.null(exclude_features)) {
-    if (object_type == "seurat") {
-      mat <- GetAssayData(object)
-      mat <- mat[!rownames(mat) %in% exclude_features, ]
-    } else {
-      mat <- assay(object)
-      mat <- mat[!rownames(mat) %in% exclude_features, ]
-    }
+    mat <- GetAssayData(object)
+    mat <- mat[!rownames(mat) %in% exclude_features, ]
   } else {
-    if (object_type == "seurat") {
-      mat <- GetAssayData(object)
-    } else {
-      mat <- assay(object)
-    }
+    mat <- GetAssayData(object)
   }
 
   original_features <- rownames(mat)
@@ -124,7 +117,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
   outlist <- list()
 
   if (scale) {
-    matNorm <- t(t(mat)/Matrix::colSums(mat)) * scale_to
+    matNorm <- t(t(mat) / Matrix::colSums(mat)) * scale_to
   } else {
     matNorm <- mat
   }
@@ -141,7 +134,6 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     }
     f_idx <- which(rownames(mat) %in% starting_features)
   } else {
-    # Compute variances and select features
     if (requireNamespace("matrixStats", quietly = TRUE)) {
       feature_vars <- matrixStats::rowVars(as.matrix(matNorm))
     } else {
@@ -161,74 +153,47 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
 
   svd_list <- svd_lsi(tf, num_dim, mat_only = FALSE)
 
-  # Perform clustering
-  if (object_type == "monocle3") {
-    # For monocle3, use monocle3:::leiden_clustering
-    cluster_result <- monocle3:::leiden_clustering(data = svd_list$matSVD,
-                                                   pd = colData(object), k = leiden_k, weight = leiden_weight,
-                                                   num_iter = leiden_iter, resolution_parameter = resolution[1],
-                                                   random_seed = seed, verbose = verbose, nn_control = list("method"="nn2"), ...)
-    clusters <- factor(igraph::membership(cluster_result$optim_res))
-  } else if (object_type == "seurat") {
-    # For Seurat, use FindNeighbors and FindClusters
-    object@reductions[["lsi"]] <- Seurat::CreateDimReducObject(embeddings = svd_list$matSVD,
-                                                    key = "LSI_", assay = Seurat::DefaultAssay(object))
+  if (object_type == "seurat") {
+    object@reductions[["lsi"]] <- Seurat::CreateDimReducObject(
+      embeddings = svd_list$matSVD, key = "LSI_", assay = Seurat::DefaultAssay(object)
+    )
     object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k)
-    object <- Seurat::FindClusters(object, resolution = resolution[1], algorithm = 1, random.seed = seed, verbose = verbose)
+    object <- Seurat::FindClusters(object, resolution = resolution[1], algorithm = 1,
+                                   random.seed = seed, verbose = verbose)
     clusters <- Seurat::Idents(object)
   }
 
-  # Proceed with the rest of the function, adapting as needed
-  # For example, calculate clusterMat, etc.
-  clusterMat <- edgeR::cpm(groupSums(mat, clusters, sparse = TRUE),
-                           log = TRUE, prior.count = 3)
-
-  if (length(resolution) == 1) {
-    # Final iteration
-    if (object_type == "monocle3") {
-      SingleCellExperiment::reducedDims(object)[["LSI"]] <- svd_list$matSVD
-      # Save other components as needed
-      # Store clusters
-      if (length(unique(clusters)) > 1) {
-        cluster_graph_res <- monocle3:::compute_partitions(cluster_result$g,
-                                                           cluster_result$optim_res, partition_qval, verbose)
-        partitions <- igraph::components(cluster_graph_res$cluster_g)$membership[cluster_result$optim_res$membership]
-        partitions <- as.factor(partitions)
-      } else {
-        partitions <- rep(1, nrow(colData(object)))
-      }
-      names(partitions) <- row.names(colData(object))
-      object@clusters[["LSI"]] <- list(cluster_result = cluster_result,
-                                       partitions = partitions, clusters = clusters)
-      if (run_umap){
-        object <- run_umap(object, ...)
-      }
-    } else if (object_type == "seurat") {
-      # Clusters are already stored in object@meta.data
-      object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
-                                          row_sums = row_sums, seed=seed, binarize=binarize,
-                                          scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                          granges=NULL, LSI_method=LSI_method, outliers=NULL)
-      if (run_umap){
-        object <- run_umap(object, ...)
-      }
-
-    }
-
-    if (return_iterations) {
-      outlist[["iteration_1"]] <- list(matSVD = svd_list$matSVD,
-                                       features = original_features[f_idx], clusters = clusters)
-      return(list(object = object, iterationlist = outlist))
-    } else {
-      return(object)
-    }
+  # ✅ ALWAYS Store SVD in `misc`, regardless of `length(resolution)`
+  if (object_type == "seurat") {
+    object@reductions[["lsi"]]@misc <- list(
+      svd = svd_list$svd,
+      features = original_features[f_idx],
+      row_sums = row_sums,
+      seed = seed,
+      binarize = binarize,
+      scale_to = scale_to,
+      num_dim = num_dim,
+      resolution = resolution,
+      granges = NULL,
+      LSI_method = LSI_method,
+      outliers = NULL
+    )
   }
 
-  # For multiple iterations
+  if (return_iterations) {
+    outlist[["iteration_1"]] <- list(
+      matSVD = svd_list$matSVD,
+      features = original_features[f_idx],
+      clusters = clusters
+    )
+    return(list(object = object, iterationlist = outlist))
+  }
+
   for (iteration in 2:length(resolution)) {
     message("Performing LSI/SVD for iteration ", iteration, "....")
-    f_idx <- head(order(matrixStats::rowVars(clusterMat), decreasing = TRUE),
-                  num_features[iteration])
+
+    f_idx <- head(order(matrixStats::rowVars(clusterMat), decreasing = TRUE), num_features[iteration])
+
     if (do_tf_idf) {
       tf <- tf_idf_transform(mat[f_idx, ], method = LSI_method)
       tf@x[is.na(tf@x)] <- 0
@@ -240,60 +205,26 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
 
     svd_list <- svd_lsi(tf, num_dim, mat_only = FALSE)
 
-    # Clustering
-    if (object_type == "monocle3") {
-      cluster_result <- monocle3:::leiden_clustering(data = svd_list$matSVD,
-                                                     pd = colData(object), k = leiden_k, weight = leiden_weight,
-                                                     num_iter = leiden_iter, resolution_parameter = resolution[iteration],
-                                                     random_seed = seed, verbose = verbose, nn_control = list("method"="nn2"), ...)
-      clusters <- factor(igraph::membership(cluster_result$optim_res))
-    } else if (object_type == "seurat") {
-      object@reductions[["lsi"]] <- Seurat::CreateDimReducObject(embeddings = svd_list$matSVD,
-                                                      key = "LSI_", assay = Seurat::DefaultAssay(object))
+    if (object_type == "seurat") {
+      object@reductions[["lsi"]] <- Seurat::CreateDimReducObject(
+        embeddings = svd_list$matSVD, key = "LSI_", assay = Seurat::DefaultAssay(object)
+      )
       object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k)
-      object <- Seurat::FindClusters(object, resolution = resolution[iteration], algorithm = 1, random.seed = seed, verbose = verbose)
+      object <- Seurat::FindClusters(object, resolution = resolution[iteration],
+                                     algorithm = 1, random.seed = seed, verbose = verbose)
       clusters <- Seurat::Idents(object)
     }
 
-    clusterMat <- edgeR::cpm(groupSums(mat, clusters, sparse = TRUE),
-                             log = TRUE, prior.count = 3)
-
-    if (iteration == length(resolution)) {
-      # Final iteration
-      if (object_type == "monocle3") {
-        SingleCellExperiment::reducedDims(object)[["LSI"]] <- svd_list$matSVD
-        # Store clusters and partitions
-        if (length(unique(clusters)) > 1) {
-          cluster_graph_res <- monocle3:::compute_partitions(cluster_result$g,
-                                                             cluster_result$optim_res, partition_qval, verbose)
-          partitions <- igraph::components(cluster_graph_res$cluster_g)$membership[cluster_result$optim_res$membership]
-          partitions <- as.factor(partitions)
-        } else {
-          partitions <- rep(1, nrow(colData(object)))
-        }
-        names(partitions) <- row.names(colData(object))
-        object@clusters[["LSI"]] <- list(cluster_result = cluster_result,
-                                         partitions = partitions, clusters = clusters)
-      } else if (object_type == "seurat") {
-        # Clusters are already stored
-      }
-      if (return_iterations) {
-        it_count <- paste0("iteration_", iteration)
-        outlist[[it_count]] <- list(matSVD = svd_list$matSVD,
-                                    features = original_features[f_idx], clusters = clusters)
-        return(list(object = object, iterationlist = outlist))
-      } else {
-        return(object)
-      }
-    } else {
-      if (return_iterations) {
-        it_count <- paste0("iteration_", iteration)
-        outlist[[it_count]] <- list(matSVD = svd_list$matSVD,
-                                    features = original_features[f_idx], clusters = clusters)
-      }
-      next
+    if (return_iterations) {
+      it_count <- paste0("iteration_", iteration)
+      outlist[[it_count]] <- list(matSVD = svd_list$matSVD,
+                                  features = original_features[f_idx], clusters = clusters)
     }
+
+    next
   }
+
+  return(object)
 }
 
 #' @keywords internal
