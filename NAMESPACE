@@ -3,6 +3,7 @@
 export(GMT_to_list)
 export(add_souporcell_seurat)
 export(adt_dotplot)
+export(all_panel)
 export(aml_panel)
 export(annotate_nhood)
 export(check_input)

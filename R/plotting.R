@@ -197,24 +197,24 @@ plot_geneset <- function(cds,
 #' @param xnbuff A numeric value specifying the negative buffer for the x-axis limits. Defaults to \code{0}.
 #' @param ynbuff A numeric value specifying the negative buffer for the y-axis limits. Defaults to \code{0}.
 #' @param remove_negs A logical value indicating whether to remove points with negative values on the x or y axes after log transformation. Defaults to \code{TRUE}.
-#' 
+#'
 #' @return A ggplot object representing the dot plot.
-#' 
+#'
 #' @examples
 #' # Example usage
-#' adt_dotplot(seu = my_seurat_object, 
-#'             x = "ADT_feature1", 
-#'             y = "ADT_feature2", 
+#' adt_dotplot(seu = my_seurat_object,
+#'             x = "ADT_feature1",
+#'             y = "ADT_feature2",
 #'             color = "ADT_feature3")
 #'
 #' @importFrom Seurat FetchData
 #' @importFrom ggplot2 ggplot aes geom_point theme_bw xlim ylim scale_color_gradient scale_color_manual xlab ylab guides guide_legend
 #' @export
-adt_dotplot <- function(seu, 
+adt_dotplot <- function(seu,
                         x,
                         y,
                         color = NULL,
-                        addvalue = 1, 
+                        addvalue = 1,
                         downsample = 0.2,
                         cols = NULL,
                         add_noise = TRUE,
@@ -255,7 +255,7 @@ adt_dotplot <- function(seu,
     ylim(ymin, ymax)+
     theme_bw()+
     xlab(x)+
-    ylab(y)+ 
+    ylab(y)+
     guides(colour = guide_legend(override.aes = list(size=3)))
 
   if(!is.null(cols)){
@@ -264,7 +264,7 @@ adt_dotplot <- function(seu,
     } else {
       g+scale_color_manual(values=cols)
     }
-    
+
   } else {
     g
   }
@@ -301,6 +301,25 @@ aml_panel <- function(seu, color = "vmR_pred", cols){
   p1+p2+p3+p4+p5+p6+p7+p8+p9
 }
 
+
+#' Generate a Panel of Dot Plots for ALL Markers
+#'
+#' This function creates a panel of dot plots for Acute Myeloid Leukemia (ALL) marker expression, using ADT data from a Seurat object. Each plot compares pairs of AML-related surface markers, and the plots are arranged in a grid. The color of the points can be customized based on a specified feature.
+#'
+#' @param seu A Seurat object containing ADT data.
+#' @param color A string representing the name of the feature to use for coloring the dots. Defaults to \code{"vmR_pred"}.
+#' @param cols A vector of colors to use for the coloring the dots. Can be used for both continuous and categorical color scales.
+#'
+#' @return A patchwork object representing a grid of dot plots.
+#'
+#' @examples
+#' # Example usage
+#' aml_panel(seu = my_seurat_object, color = "vmR_pred", cols = my_colors)
+#'
+#' @importFrom Seurat FetchData
+#' @importFrom ggplot2 NoLegend
+#' @importFrom patchwork +
+#' @export
 all_panel <- function(seu, color = "vmR_pred", cols){
   p1<-adt_dotplot(seu, "CD45", "CD10", color, cols = cols)+NoLegend()
   p2<-adt_dotplot(seu, "CD10", "CD19", color, cols = cols)+NoLegend()

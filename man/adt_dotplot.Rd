@@ -58,9 +58,9 @@ This function creates a dot plot using Antibody-Derived Tag (ADT) data from a Se
 }
 \examples{
 # Example usage
-adt_dotplot(seu = my_seurat_object, 
-            x = "ADT_feature1", 
-            y = "ADT_feature2", 
+adt_dotplot(seu = my_seurat_object,
+            x = "ADT_feature1",
+            y = "ADT_feature2",
             color = "ADT_feature3")
 
 }

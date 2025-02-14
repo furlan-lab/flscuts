@@ -24,7 +24,7 @@ iterative_LSI(
   leiden_iter = 1,
   verbose = FALSE,
   return_iterations = FALSE,
-  run_umap = FALS,
+  run_umap = FALSE,
   ...
 )
 }
@@ -104,6 +104,8 @@ seurat_obj <- iterative_LSI(
   resolution = c(0.2, 0.5, 0.8)
 )
 }
+
+
 }
 \references{
 Granja, J. M., et al. (2019). Single-cell multiomic analysis identifies regulatory programs in mixed-phenotype acute leukemia. \emph{Nature Biotechnology}, 37(12), 1458–1465.
