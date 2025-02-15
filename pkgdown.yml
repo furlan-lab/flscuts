@@ -1,11 +1,11 @@
-pandoc: '3.2'
+pandoc: 3.1.11.1
 pkgdown: 2.0.7
 pkgdown_sha: ~
 articles:
   LeukemiaFlowPlots: LeukemiaFlowPlots.html
   ProjectDataLSIWorkflow: ProjectDataLSIWorkflow.html
   ProjectDataSeuratWorkflow: ProjectDataSeuratWorkflow.html
-last_built: 2024-10-20T04:07Z
+last_built: 2025-02-14T23:54Z
 urls:
   reference: https://furlan-lab.github.io/flscuts/reference
   article: https://furlan-lab.github.io/flscuts/articles
