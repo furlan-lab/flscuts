@@ -61,7 +61,6 @@ reference:
   - find_markers
   - adt_dotplot
   - aml_panel
-  - all_panel
 - title: Additional functions
   desc: Helper functions to add or modify elements
   contents:

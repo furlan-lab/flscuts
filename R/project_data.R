@@ -155,12 +155,17 @@ project_data <- function(
 
   # Get Previous UMAP Model
   if (object_type_projector == "monocle3") {
-    umap_model_file <- projector@int_metadata$UMAP_model_file
+    #umap_model_file <- projector@int_metadata$UMAP_model_file
+    if (!is.null(projector@reduce_dim_aux[["UMAP"]]$model$umap_model)) {
+      umap_model <- projector@reduce_dim_aux[["UMAP"]]$model$umap_model
+    } else {
+      stop("UMAP model not found in projector object")
+    }
   } else if (object_type_projector == "seurat") {
     if (!is.null(projector@reductions[[embedding]]@misc$model)) {
       umap_model <- projector@reductions[[embedding]]@misc$model
     } else {
-      stop("UMAP model not found in projector object. Please run RunUMAP with return.model = TRUE.")
+      stop("UMAP model not found in projector object")
     }
   }
 
@@ -173,10 +178,6 @@ project_data <- function(
   if (verbose & !make_pseudo_single_cells) message(paste0("Projecting projectee cells onto manifold"))
   set.seed(seed)
 
-  if (object_type_projector == "monocle3") {
-    # Load UMAP model
-    umap_model <- load_umap_model(umap_model_file, embedding_num_dim)
-  }
   # Combine the existing reduced dimensions with the projected ones
   combined_rD <- rbind(rD_ss, projRD)
 
@@ -305,12 +306,12 @@ extract_data <- function(query,
         stop("The 'subject' does not have rowRanges for range-based querying.")
       }
       # Get the overlaps
-      se_sub <- GenomicRanges::subsetByOverlaps(subject, query, ignore.strand = ignore_strand, type = "any")
+      se_sub <- IRanges::subsetByOverlaps(subject, query, ignore.strand = ignore_strand, type = "any")
       if (nrow(se_sub) == 0) {
         stop("No overlap between query and subject found.")
       }
       # Get the data matrix
-      dat <- SummarizedExperiment::assay(se_sub)
+      dat <- as.matrix(SummarizedExperiment::assay(se_sub))
       # Find overlaps and resolve duplicates
       hits <- data.table::as.data.table(GenomicRanges::findOverlaps(query, SummarizedExperiment::rowRanges(se_sub), ignore.strand = ignore_strand))
     } else if (subject_type == "Seurat") {
@@ -321,7 +322,7 @@ extract_data <- function(query,
     # Continue processing overlaps
     fs <- names(query) <- paste("f", seq_along(query), sep = "_")
     # Calculate statistics for duplicate resolution
-    hits$var <- matrixStats::rowVars(dat)[hits$subjectHits]
+    hits$var <- rowVars(dat)[hits$subjectHits]
     hits$mean <- Matrix::rowMeans(dat)[hits$subjectHits]
     hits$disp <- sqrt(hits$var) / hits$mean * 100
     # Resolve duplicates
@@ -750,34 +751,7 @@ sparseRowVariances <- function (m){
   rV <- computeSparseRowVariances(m@i + 1, m@x, rM, ncol(m))
   return(rV)
 }
-#
-#
-# #Sparse Variances Rcpp
-# Rcpp::sourceCpp(code='
-#   #include <Rcpp.h>
-#   using namespace Rcpp;
-#   using namespace std;
-#   // [[Rcpp::export]]
-#   Rcpp::NumericVector computeSparseRowVariances(IntegerVector j, NumericVector val, NumericVector rm, int n) {
-#     const int nv = j.size();
-#     const int nm = rm.size();
-#     Rcpp::NumericVector rv(nm);
-#     Rcpp::NumericVector rit(nm);
-#     int current;
-#     // Calculate RowVars Initial
-#     for (int i = 0; i < nv; ++i) {
-#       current = j(i) - 1;
-#       rv(current) = rv(current) + (val(i) - rm(current)) * (val(i) - rm(current));
-#       rit(current) = rit(current) + 1;
-#     }
-#     // Calculate Remainder Variance
-#     for (int i = 0; i < nm; ++i) {
-#       rv(i) = rv(i) + (n - rit(i))*rm(i)*rm(i);
-#     }
-#     rv = rv / (n - 1);
-#     return(rv);
-#   }'
-# )
+
 
 #New save_umap
 #' @keywords internal

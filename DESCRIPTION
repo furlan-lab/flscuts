@@ -21,7 +21,9 @@ Imports:
   SummarizedExperiment,
   SingleCellExperiment,
   Seurat,
-  Matrix
+  Matrix,
+  Rcpp (>= 1.0.12)
+LinkingTo: Rcpp
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

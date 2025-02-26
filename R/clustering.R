@@ -144,11 +144,13 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     f_idx <- which(rownames(mat) %in% starting_features)
   } else {
     # Compute variances and select features
-    if (requireNamespace("matrixStats", quietly = TRUE)) {
-      feature_vars <- matrixStats::rowVars(as.matrix(matNorm))
-    } else {
-      stop("Package 'matrixStats' is required for variance calculation.")
-    }
+    feature_vars <- sparseRowVariances(matNorm)
+
+    # if (requireNamespace("matrixStats", quietly = TRUE)) {
+    #   feature_vars <- matrixStats::rowVars(as.matrix(matNorm)) ###THIS NEEDS TO BE FIXED
+    # } else {
+    #   stop("Package 'matrixStats' is required for variance calculation.")
+    # }
     f_idx <- head(order(feature_vars, decreasing = TRUE), num_features[1])
   }
 
@@ -202,6 +204,10 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
       names(partitions) <- row.names(colData(object))
       object@clusters[["LSI"]] <- list(cluster_result = cluster_result,
                                        partitions = partitions, clusters = clusters)
+      object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
+                                           row_sums = row_sums, seed=seed, binarize=binarize,
+                                           scale_to=scale_to, num_dim=num_dim, resolution=resolution,
+                                           granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
       if (run_umap){
         object <- run_umap(object, ...)
       }
@@ -210,7 +216,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
       object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
                                               row_sums = row_sums, seed=seed, binarize=binarize,
                                               scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                              granges=NULL, LSI_method=LSI_method, outliers=NULL)
+                                              granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
       if (run_umap){
         object <- run_umap(object, ...)
       }
@@ -275,11 +281,15 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
         names(partitions) <- row.names(colData(object))
         object@clusters[["LSI"]] <- list(cluster_result = cluster_result,
                                          partitions = partitions, clusters = clusters)
+        object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
+                                   row_sums = row_sums, seed=seed, binarize=binarize,
+                                   scale_to=scale_to, num_dim=num_dim, resolution=resolution,
+                                   granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
       } else if (object_type == "seurat") {
         object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
                                                 row_sums = row_sums, seed=seed, binarize=binarize,
                                                 scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                                granges=NULL, LSI_method=LSI_method, outliers=NULL)
+                                                granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
       }
       if (return_iterations) {
         it_count <- paste0("iteration_", iteration)
@@ -491,12 +501,12 @@ tf_idf_transform <- function(input, method=1, verbose=T){
 #' @return A numeric vector of row variances.
 #' @export
 #' @keywords internal
-sparseRowVariances <- function(m) {
-  row_means <- Matrix::rowMeans(m)
-  row_means_sq <- row_means^2
-  row_vars <- Matrix::rowMeans(m^2) - row_means_sq
-  return(row_vars)
-}
+# sparseRowVariances <- function(m) {
+#   row_means <- Matrix::rowMeans(m)
+#   row_means_sq <- row_means^2
+#   row_vars <- Matrix::rowMeans(m^2) - row_means_sq
+#   return(row_vars)
+# }
 
 #' @title Group Sums for Sparse Matrices
 #' @description Sums the columns of a matrix grouped by a factor, optimized for sparse matrices.

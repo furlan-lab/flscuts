@@ -320,6 +320,7 @@ aml_panel <- function(seu, color = "vmR_pred", cols){
 #' @importFrom ggplot2 NoLegend
 #' @importFrom patchwork +
 #' @export
+
 all_panel <- function(seu, color = "vmR_pred", cols){
   p1<-adt_dotplot(seu, "CD45", "CD10", color, cols = cols)+NoLegend()
   p2<-adt_dotplot(seu, "CD10", "CD19", color, cols = cols)+NoLegend()

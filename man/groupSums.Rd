@@ -2,7 +2,7 @@
 % Please edit documentation in R/clustering.R
 \name{groupSums}
 \alias{groupSums}
-\title{Group Sums for Sparse Matrices}
+\title{Sparse Row Variances}
 \usage{
 groupSums(mat, groups = NULL, sparse = FALSE)
 }
@@ -12,11 +12,17 @@ groupSums(mat, groups = NULL, sparse = FALSE)
 \item{groups}{A factor or character vector indicating group membership for each column of \code{mat}.}
 
 \item{sparse}{Logical indicating whether the input matrix is sparse. Default is \code{FALSE}.}
+
+\item{m}{A sparse matrix of class \code{dgCMatrix}.}
 }
 \value{
+A numeric vector of row variances.
+
 A matrix with rows corresponding to the rows of \code{mat} and columns corresponding to the unique levels of \code{groups}.
 }
 \description{
+Computes the variances of rows in a sparse matrix efficiently.
+
 Sums the columns of a matrix grouped by a factor, optimized for sparse matrices.
 }
 \keyword{internal}
