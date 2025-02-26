@@ -126,7 +126,9 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
   outlist <- list()
 
   if (scale) {
-    matNorm <- t(t(mat)/Matrix::colSums(mat)) * scale_to
+    #matNorm <- t(t(mat)/Matrix::colSums(mat)) * scale_to ### THIS EXPANDS MEMORY
+    col_sums <- Matrix::colSums(mat)
+    matNorm <- tcrossprod(mat, Diagonal(x = 1 / col_sums)) * scale_to
   } else {
     matNorm <- mat
   }
@@ -153,7 +155,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     # }
     f_idx <- head(order(feature_vars, decreasing = TRUE), num_features[1])
   }
-
+  gc()
   if (do_tf_idf) {
     tf <- tf_idf_transform(mat[f_idx, ], method = LSI_method)
     row_sums <- Matrix::rowSums(mat[f_idx, ])
@@ -162,7 +164,9 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     tf <- mat[f_idx, ]
     row_sums <- Matrix::rowSums(mat[f_idx, ])
   }
+  gc()
 
+  message("Computing SVD")
   svd_list <- svd_lsi(tf, num_dim, mat_only = FALSE)
 
   # Perform clustering
@@ -441,58 +445,134 @@ cluster_LSI <- function(object,
 #' @importFrom Matrix t
 #' @export
 #' @keywords internal
-tf_idf_transform <- function(input, method=1, verbose=T){
-  if(class(input)=="cell_data_set"){
-    mat<-exprs(input)
-  }else{
-    mat<-input
+# tf_idf_transform <- function(input, method=1, verbose=T){
+#
+#   # Extract matrix from input object if needed
+#   if (class(input) == "cell_data_set") {
+#     mat <- exprs(input)
+#   } else {
+#     mat <- input
+#   }
+#
+#   rn <- rownames(mat)
+#   row_sums <- rowSums(mat)
+#
+#   # Remove zero-sum rows to avoid division by zero
+#   nz <- which(row_sums > 0)
+#   mat <- mat[nz, , drop = FALSE]
+#   rn <- rn[nz]
+#   row_sums <- row_sums[nz]
+#   col_sums <- colSums(mat)
+#
+#   # **Efficient Column Normalization using `tcrossprod()`**
+#   scaling_matrix <- Diagonal(x = 1 / col_sums)
+#   mat <- tcrossprod(mat, scaling_matrix)  # Avoids explicit transposition
+#
+#   # Compute TF-IDF
+#   if (method == 1) {
+#     if (verbose) message("Computing Inverse Document Frequency")
+#     idf <- log(1 + ncol(mat) / row_sums)
+#
+#     if (verbose) message("Computing TF-IDF Matrix")
+#     mat <- tcrossprod(Diagonal(x = idf), mat)  # Efficient multiplication
+#   }
+#   else if (method == 2) {
+#     if (verbose) message("Computing Inverse Document Frequency")
+#     idf <- ncol(mat) / row_sums
+#
+#     if (verbose) message("Computing TF-IDF Matrix")
+#     mat <- tcrossprod(Diagonal(x = idf), mat)
+#     mat@x <- log(mat@x * scale_to + 1)
+#   }
+#   else if (method == 3) {
+#     mat@x <- log(mat@x + 1)
+#
+#     if (verbose) message("Computing Inverse Document Frequency")
+#     idf <- log(1 + ncol(mat) / row_sums)
+#
+#     if (verbose) message("Computing TF-IDF Matrix")
+#     mat <- tcrossprod(Diagonal(x = idf), mat)
+#   }
+#   else {
+#     stop("LSIMethod unrecognized, please select a valid method!")
+#   }
+#
+#   # Restore row names
+#   rownames(mat) <- rn
+#
+#   # Return in correct format
+#   if (class(input) == "cell_data_set") {
+#     input@assays$data$counts <- mat
+#     return(input)
+#   } else {
+#     return(mat)
+#   }
+# }
+
+tf_idf_transform <- function(input, method = 1, verbose = TRUE) {
+
+  # Extract matrix if input is a cell_data_set
+  if (class(input) == "cell_data_set") {
+    mat <- exprs(input)
+    input_class <- "cell_data_set"
+  } else {
+    mat <- input
+    rm(input)
+    input_class <- "matrix"
   }
+  gc()
+
   rn <- rownames(mat)
-  row_sums<-rowSums(mat)
-  nz<-which(row_sums>0)
-  mat <- mat[nz,]
+  row_sums <- rowSums(mat)
+
+  # Remove zero-sum rows
+  nz <- which(row_sums > 0)
+  mat <- mat[nz, , drop = FALSE]
   rn <- rn[nz]
   row_sums <- row_sums[nz]
   col_sums <- colSums(mat)
-
-  #column normalize
-  mat <-Matrix::t(Matrix::t(mat)/col_sums)
+  mat <- mat %*% Diagonal(x = 1 / col_sums)
 
 
   if (method == 1) {
-    #Adapted from Casanovich et al.
-    if(verbose) message("Computing Inverse Document Frequency")
+    if (verbose) message("Computing Inverse Document Frequency")
     idf   <- as(log(1 + ncol(mat) / row_sums), "sparseVector")
-    if(verbose) message("Computing TF-IDF Matrix")
-    mat <- as(Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
+    if (verbose) message("Computing TF-IDF Matrix")
+    mat <- as(Matrix::Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
       mat
   }
   else if (method == 2) {
-    #Adapted from Stuart et al.
-    if(verbose) message("Computing Inverse Document Frequency")
+    if (verbose) message("Computing Inverse Document Frequency")
     idf   <- as( ncol(mat) / row_sums, "sparseVector")
     if(verbose) message("Computing TF-IDF Matrix")
-    mat <- as(Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
+    mat <- as(Matrix::Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
       mat
     mat@x <- log(mat@x * scale_to + 1)
-  }else if (method == 3) {
+  }
+  else if (method == 3) {
     mat@x <- log(mat@x + 1)
     if(verbose) message("Computing Inverse Document Frequency")
     idf <- as(log(1 + ncol(mat) /row_sums), "sparseVector")
     if(verbose) message("Computing TF-IDF Matrix")
-    mat <- as(Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
+    mat <- as(Matrix::Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
       mat
-  }else {
-    stop("LSIMethod unrecognized please select valid method!")
   }
+  else {
+    stop("LSIMethod unrecognized, please select a valid method!")
+  }
+
+  # Restore row names
   rownames(mat) <- rn
-  if(class(input)=="cell_data_set"){
-    input@assays$data$counts<-mat
+
+  # Return in correct format
+  if (input_class == "cell_data_set") {
+    input@assays$data$counts <- mat
     return(input)
-  }else{
+  } else {
     return(mat)
   }
 }
+
 
 
 #' @title Sparse Row Variances
