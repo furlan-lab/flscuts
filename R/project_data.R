@@ -213,7 +213,7 @@ project_data <- function(
     make_pseudo_single_cells = FALSE,
     features = c("annotation-based", "range-based"),
     n = 250,
-    projector_col <- NULL,
+    projectee_label_col = NULL,
     verbose = TRUE,
     threads = 6,
     seed = 2020,
@@ -327,10 +327,19 @@ project_data <- function(
 
     if (scale) {
       projRD <- scale_dims(projRD)
-      projectee_labels <- ""
+    }
+    if(is.null(projectee_label_col)){
+      projectee_labels <- unlist(sapply(rownames(colData(projectee)), function(x) rep(x, n)))
+    } else {
+      projectee_labels <- unlist(sapply(colData(projectee)[[projectee_label_col]], function(x) rep(x, n)))
     }
   } else {
     projRD <- as.matrix(projectLSI(shared_rd$mat, LSI = lsi_model, verbose = verbose))
+    if(is.null(projectee_label_col)){
+      projectee_labels <- rownames(colData(projector))
+    } else {
+      projectee_labels <- colData(projectee)[[projectee_label_col]]
+    }
   }
 
   # Check LSI and Embedding SVD columns
@@ -386,11 +395,16 @@ project_data <- function(
   colnames(dfUMAP) <- c("UMAP1", "UMAP2")
   colnames(simUMAP) <- c("UMAP1", "UMAP2")
   dfUMAP <- DataFrame(dfUMAP)
-  dfUMAP$Type <- Rle("single_cell", lengths = nrow(dfUMAP))
+  dfUMAP$projectee_labels <- Rle("single_cell_reference", lengths = nrow(dfUMAP))
+
+
+
 
   simUMAP <- DataFrame(simUMAP[rownames(projRD), , drop = FALSE])
   #simUMAP$Type <- Rle(stringr::str_split(rownames(simUMAP), pattern = "#", simplify = TRUE)[, 1])
-  simUMAP$Type <- Rle(stringr::str_split(rownames(simUMAP), pattern = "#", simplify = TRUE)[, 1])
+  simUMAP$projectee_labels <- projectee_labels
+
+
 
   out <- SimpleList(
     projectedUMAP = simUMAP,

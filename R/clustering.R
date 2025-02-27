@@ -128,7 +128,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
   if (scale) {
     #matNorm <- t(t(mat)/Matrix::colSums(mat)) * scale_to ### THIS EXPANDS MEMORY
     col_sums <- Matrix::colSums(mat)
-    matNorm <- tcrossprod(mat, Diagonal(x = 1 / col_sums)) * scale_to
+    matNorm <- Matrix::tcrossprod(mat, Diagonal(x = 1 / col_sums)) * scale_to
   } else {
     matNorm <- mat
   }

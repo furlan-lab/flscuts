@@ -14,6 +14,7 @@ project_data(
   make_pseudo_single_cells = FALSE,
   features = c("annotation-based", "range-based"),
   n = 250,
+  projectee_label_col = NULL,
   verbose = TRUE,
   threads = 6,
   seed = 2020,
