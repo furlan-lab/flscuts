@@ -665,7 +665,7 @@ svd_lsi <- function (sp_mat, num_dim, mat_only = T)
 #' This function performs clustering using the specified method and then computes partitions by constructing a cluster graph and finding connected components. Cells belonging to clusters within the same connected component are assigned to the same partition.
 #'
 #' @importFrom Seurat FindNeighbors FindClusters Embeddings Reductions Idents DefaultAssay
-#' @importFrom igraph as.igraph set_vertex_attr as_data_frame graph_from_data_frame components V
+#' @importFrom igraph as.igraph set_vertex_attr as_data_frame graph_from_data_frame components V graph_from_adjacency_matrix
 #' @export
 #' @keywords internal
 #'
@@ -731,7 +731,8 @@ find_partitions <- function(obj, method = "louvain", k = 20, reduction = "umap",
   snn_graph <- obj@graphs[[graph_name]]
 
   # Convert the SNN graph to an igraph object
-  snn_igraph <- igraph::as.igraph(snn_graph)
+  snn_igraph <- graph_from_adjacency_matrix(snn_graph, mode = "undirected", weighted = TRUE)
+  #snn_igraph <- igraph::as.igraph(g)
 
   # Get the clusters
   clusters <- as.character(Seurat::Idents(obj))
@@ -766,7 +767,7 @@ find_partitions <- function(obj, method = "louvain", k = 20, reduction = "umap",
   # Map cells to partitions
   cell_partitions <- cluster_partitions[clusters]
   partitions <- as.factor(cell_partitions)
-
+  names(partitions)<- Cells(obj)
   # Add partitions to metadata
   obj$partitions <- partitions
 
