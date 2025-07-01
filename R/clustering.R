@@ -208,10 +208,14 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
       names(partitions) <- row.names(colData(object))
       object@clusters[["LSI"]] <- list(cluster_result = cluster_result,
                                        partitions = partitions, clusters = clusters)
+      # object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
+      #                                      row_sums = row_sums, seed=seed, binarize=binarize,
+      #                                      scale_to=scale_to, num_dim=num_dim, resolution=resolution,
+      #                                      granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
       object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
                                            row_sums = row_sums, seed=seed, binarize=binarize,
                                            scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                           granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
+                                           granges=NULL, LSI_method=LSI_method, outliers=NULL)
       if (run_umap){
         object <- run_umap(object, ...)
       }
@@ -290,10 +294,14 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
                                    scale_to=scale_to, num_dim=num_dim, resolution=resolution,
                                    granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
       } else if (object_type == "seurat") {
-        object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
-                                                row_sums = row_sums, seed=seed, binarize=binarize,
-                                                scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                                granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
+          # object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
+          #                                       row_sums = row_sums, seed=seed, binarize=binarize,
+          #                                       scale_to=scale_to, num_dim=num_dim, resolution=resolution,
+          #                                       granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
+          object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
+                                                  row_sums = row_sums, seed=seed, binarize=binarize,
+                                                  scale_to=scale_to, num_dim=num_dim, resolution=resolution,
+                                                  granges=NULL, LSI_method=LSI_method, outliers=NULL)
       }
       if (return_iterations) {
         it_count <- paste0("iteration_", iteration)
