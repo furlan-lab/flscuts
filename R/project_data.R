@@ -302,8 +302,33 @@ project_data <- function(
     n2 <- ceiling(n / nRep)
     ratios <- c(2, 1.5, 1, 0.5, 0.25) # Range of ratios of number of fragments
 
-    if (verbose) message(paste0("Simulating ", (n * dim(shared_rd$mat)[2]), " single cells"))
-    projRD <- pbmcapply::pbmclapply(seq_len(ncol(shared_rd$mat)), function(x){
+    # if (verbose) message(paste0("Simulating ", (n * dim(shared_rd$mat)[2]), " single cells"))
+    # projRD <- pbmcapply::pbmclapply(seq_len(ncol(shared_rd$mat)), function(x){
+    #   counts <- shared_rd$mat[, x]
+    #   counts <- rep(seq_along(counts), counts)
+    #   simMat <- lapply(seq_len(nRep), function(y){
+    #     ratio <- ratios[y]
+    #     simMat <- matrix(sample(x = counts, size = ceiling(ratio * depthN) * n2, replace = TRUE), ncol = n2)
+    #     simMat <- Matrix::summary(as(simMat, "dgCMatrix"))[, -1, drop = FALSE]
+    #     simMat[, 1] <- simMat[, 1] + (y - 1) * n2
+    #     simMat
+    #   }) %>% Reduce("rbind", .)
+    #   simMat <- Matrix::sparseMatrix(i = simMat[, 2], j = simMat[, 1], x = rep(1, nrow(simMat)), dims = c(nrow(shared_rd$mat), n2 * nRep))
+    #   projRD <- as.matrix(projectLSI(simMat, LSI = lsi_model, verbose = verbose))
+    #   rownames(projRD) <- paste0(colnames(shared_rd$mat)[x], "#", seq_len(nrow(projRD)))
+    #   projRD
+    # }, mc.cores = threads) %>% Reduce("rbind", .)
+
+    ## REMOVED ABOVE SECONDARY TO ISSUES WITH PBMCLAPPLY
+    if (verbose) {
+      message(paste0("Simulating ", (n * dim(shared_rd$mat)[2]), " single cells"))
+      message(paste0("Processing ", ncol(shared_rd$mat), " samples with ", threads, " cores..."))
+    }
+
+    projRD <- parallel::mclapply(seq_len(ncol(shared_rd$mat)), function(x){
+      # Print progress every 5 samples
+      if (x %% 5 == 0 && verbose) message(paste0("Processed ", x, "/", ncol(shared_rd$mat), " samples"))
+      
       counts <- shared_rd$mat[, x]
       counts <- rep(seq_along(counts), counts)
       simMat <- lapply(seq_len(nRep), function(y){
@@ -314,10 +339,13 @@ project_data <- function(
         simMat
       }) %>% Reduce("rbind", .)
       simMat <- Matrix::sparseMatrix(i = simMat[, 2], j = simMat[, 1], x = rep(1, nrow(simMat)), dims = c(nrow(shared_rd$mat), n2 * nRep))
-      projRD <- as.matrix(projectLSI(simMat, LSI = lsi_model, verbose = verbose))
+      projRD <- as.matrix(projectLSI(simMat, LSI = lsi_model, verbose = FALSE))
       rownames(projRD) <- paste0(colnames(shared_rd$mat)[x], "#", seq_len(nrow(projRD)))
       projRD
-    }, mc.cores = threads) %>% Reduce("rbind", .)
+    }, mc.cores = threads, mc.preschedule = FALSE, mc.set.seed = TRUE) %>% Reduce("rbind", .)
+
+    if (verbose) message("Complete!")
+
 
     # Deal with NaN
     if (any(is.nan(projRD))) {

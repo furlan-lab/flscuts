@@ -74,14 +74,14 @@
 iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resolution = c(1e-04,
                                                                                           3e-04, 5e-04), do_tf_idf = TRUE, num_features = c(3000, 3000,
                                                                                                                                             3000), exclude_features = NULL, binarize = FALSE, scale = TRUE,
-                           log_transform = TRUE, LSI_method = 1, partition_qval = 0.05,
+                           log_transform = TRUE, LSI_method = 1, partition_qval = 0.05, assay = "RNA",
                            seed = 2020, scale_to = 10000, leiden_k = 20, leiden_weight = FALSE,
                            leiden_iter = 1, verbose = FALSE, return_iterations = FALSE, run_umap = FALSE, ...)
 {
   # Check object type
   if (is(object, "Seurat")) {
     object_type <- "seurat"
-  } else if (is(object, "cell_data_set")) {
+  } else if (class(object)=="cell_data_set") {
     object_type <- "monocle3"
   } else {
     stop("The object must be a Seurat object or a Monocle3 cell_data_set object.")
@@ -101,7 +101,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
   # Get the expression matrix
   if (!is.null(exclude_features)) {
     if (object_type == "seurat") {
-      mat <- GetAssayData(object)
+      mat <- GetAssayData(object, assay = assay, layer = "counts")
       mat <- mat[!rownames(mat) %in% exclude_features, ]
     } else {
       mat <- assay(object)
@@ -109,11 +109,12 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     }
   } else {
     if (object_type == "seurat") {
-      mat <- GetAssayData(object)
+      mat <- GetAssayData(object, assay = assay, layer = "counts")
     } else {
       mat <- assay(object)
     }
   }
+  mat <- mat[order(rownames(mat)), ]
 
   original_features <- rownames(mat)
   set.seed(seed)
@@ -165,7 +166,9 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     row_sums <- Matrix::rowSums(mat[f_idx, ])
   }
   gc()
-
+  if(is.null(colnames(tf))){
+    colnames(tf)<- colnames(mat)
+  }
   message("Computing SVD")
   svd_list <- svd_lsi(tf, num_dim, mat_only = FALSE)
 
@@ -181,8 +184,8 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     # For Seurat, use FindNeighbors and FindClusters
     object@reductions[["lsi"]] <- Seurat::CreateDimReducObject(embeddings = svd_list$matSVD,
                                                                key = "LSI_", assay = Seurat::DefaultAssay(object))
-    object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k)
-    object <- Seurat::FindClusters(object, resolution = resolution[1], algorithm = 1, random.seed = seed, verbose = verbose)
+    object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k, nn.method  = "rann")
+    object <- Seurat::FindClusters(object, resolution = resolution[1], algorithm = 4, random.seed = seed, verbose = verbose)
     clusters <- Seurat::Idents(object)
   }
 
@@ -208,23 +211,27 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
       names(partitions) <- row.names(colData(object))
       object@clusters[["LSI"]] <- list(cluster_result = cluster_result,
                                        partitions = partitions, clusters = clusters)
-      # object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
-      #                                      row_sums = row_sums, seed=seed, binarize=binarize,
-      #                                      scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-      #                                      granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
       object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
                                            row_sums = row_sums, seed=seed, binarize=binarize,
                                            scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                           granges=NULL, LSI_method=LSI_method, outliers=NULL)
+                                           granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
+      # object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
+      #                                      row_sums = row_sums, seed=seed, binarize=binarize,
+      #                                      scale_to=scale_to, num_dim=num_dim, resolution=resolution,
+      #                                      granges=NULL, LSI_method=LSI_method, outliers=NULL)
       if (run_umap){
         object <- run_umap(object, ...)
       }
     } else if (object_type == "seurat") {
       # Clusters are already stored in object@meta.data
+      # object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
+      #                                         row_sums = row_sums, seed=seed, binarize=binarize,
+      #                                         scale_to=scale_to, num_dim=num_dim, resolution=resolution,
+      #                                         granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
       object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
                                               row_sums = row_sums, seed=seed, binarize=binarize,
                                               scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                              granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
+                                              granges=NULL, LSI_method=LSI_method, outliers=NULL)
       if (run_umap){
         object <- run_umap(object, ...)
       }
@@ -242,8 +249,11 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
   # For multiple iterations
   for (iteration in 2:length(resolution)) {
     message("Performing LSI/SVD for iteration ", iteration, "....")
+    # feature_vars <- sparseRowVariances(matNorm)
+    # f_idx <- head(order(-feature_vars, rownames(matNorm)),
+    #               num_features[iteration])
     f_idx <- head(order(matrixStats::rowVars(clusterMat), decreasing = TRUE),
-                  num_features[iteration])
+                   num_features[iteration])
     if (do_tf_idf) {
       tf <- tf_idf_transform(mat[f_idx, ], method = LSI_method)
       tf@x[is.na(tf@x)] <- 0
@@ -251,6 +261,9 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     } else {
       tf <- mat[f_idx, ]
       row_sums <- Matrix::rowSums(mat[f_idx, ])
+    }
+    if(is.null(colnames(tf))){
+      colnames(tf)<- colnames(mat)
     }
 
     svd_list <- svd_lsi(tf, num_dim, mat_only = FALSE)
@@ -265,8 +278,8 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     } else if (object_type == "seurat") {
       object@reductions[["lsi"]] <- Seurat::CreateDimReducObject(embeddings = svd_list$matSVD,
                                                                  key = "LSI_", assay = Seurat::DefaultAssay(object))
-      object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k)
-      object <- Seurat::FindClusters(object, resolution = resolution[iteration], algorithm = 1, random.seed = seed, verbose = verbose)
+      object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k, nn.method  = "rann")
+      object <- Seurat::FindClusters(object, resolution = resolution[iteration], algorithm = 4, random.seed = seed, verbose = verbose)
       clusters <- Seurat::Idents(object)
     }
 
