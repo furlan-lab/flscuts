@@ -357,17 +357,33 @@ project_data <- function(
       projRD <- scale_dims(projRD)
     }
     if(is.null(projectee_label_col)){
-      projectee_labels <- unlist(sapply(rownames(colData(projectee)), function(x) rep(x, n)))
+      if (methods::is(projectee, "Seurat")) {
+        projectee_labels <- unlist(sapply(colnames(projectee), function(x) rep(x, n)))
+      } else {
+        projectee_labels <- unlist(sapply(rownames(colData(projectee)), function(x) rep(x, n)))
+      }
     } else {
-      projectee_labels <- unlist(sapply(colData(projectee)[[projectee_label_col]], function(x) rep(x, n)))
+      if (methods::is(projectee, "Seurat")) {
+        projectee_labels <- unlist(sapply(projectee@meta.data[[projectee_label_col]], function(x) rep(x, n)))
+      } else {
+        projectee_labels <- unlist(sapply(colData(projectee)[[projectee_label_col]], function(x) rep(x, n)))
+      }
     }
   } else {
     projRD <- as.matrix(projectLSI(shared_rd$mat, LSI = lsi_model, verbose = verbose))
-    if(is.null(projectee_label_col)){
-      projectee_labels <- rownames(colData(projector))
-    } else {
-      projectee_labels <- colData(projectee)[[projectee_label_col]]
-    }
+      if(is.null(projectee_label_col)){
+        if (methods::is(projectee, "Seurat")) {
+          projectee_labels <- colnames(projectee)
+        } else {
+          projectee_labels <- rownames(colData(projectee))
+        }
+      } else {
+        if (methods::is(projectee, "Seurat")) {
+          projectee_labels <- projectee@meta.data[[projectee_label_col]]
+        } else {
+          projectee_labels <- colData(projectee)[[projectee_label_col]]
+        }
+      }
   }
 
   # Check LSI and Embedding SVD columns

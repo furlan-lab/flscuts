@@ -76,7 +76,8 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
                                                                                                                                             3000), exclude_features = NULL, binarize = FALSE, scale = TRUE,
                            log_transform = TRUE, LSI_method = 1, partition_qval = 0.05, assay = "RNA",
                            seed = 2020, scale_to = 10000, leiden_k = 20, leiden_weight = FALSE,
-                           leiden_iter = 1, verbose = FALSE, return_iterations = FALSE, run_umap = FALSE, ...)
+                           leiden_iter = 1, verbose = FALSE, return_iterations = FALSE, run_umap = FALSE, 
+                           seurat_data_layer = "data", ...)
 {
   # Check object type
   if (is(object, "Seurat")) {
@@ -101,7 +102,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
   # Get the expression matrix
   if (!is.null(exclude_features)) {
     if (object_type == "seurat") {
-      mat <- GetAssayData(object, assay = assay, layer = "counts")
+      mat <- GetAssayData(object, assay = assay, layer = seurat_data_layer)
       mat <- mat[!rownames(mat) %in% exclude_features, ]
     } else {
       mat <- assay(object)
@@ -109,7 +110,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     }
   } else {
     if (object_type == "seurat") {
-      mat <- GetAssayData(object, assay = assay, layer = "counts")
+      mat <- GetAssayData(object, assay = assay, layer = seurat_data_layer)
     } else {
       mat <- assay(object)
     }
@@ -130,6 +131,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     #matNorm <- t(t(mat)/Matrix::colSums(mat)) * scale_to ### THIS EXPANDS MEMORY
     col_sums <- Matrix::colSums(mat)
     matNorm <- Matrix::tcrossprod(mat, Diagonal(x = 1 / col_sums)) * scale_to
+    colnames(matNorm) <- colnames(mat)
   } else {
     matNorm <- mat
   }
