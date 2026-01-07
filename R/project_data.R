@@ -325,7 +325,7 @@ project_data <- function(
       message(paste0("Processing ", ncol(shared_rd$mat), " samples with ", threads, " cores..."))
     }
 
-    projRD <- parallel::mclapply(seq_len(ncol(shared_rd$mat)), function(x){
+    projRD <- lapply(seq_len(ncol(shared_rd$mat)), function(x){
       # Print progress every 5 samples
       if (x %% 5 == 0 && verbose) message(paste0("Processed ", x, "/", ncol(shared_rd$mat), " samples"))
       
@@ -342,8 +342,8 @@ project_data <- function(
       projRD <- as.matrix(projectLSI(simMat, LSI = lsi_model, verbose = FALSE))
       rownames(projRD) <- paste0(colnames(shared_rd$mat)[x], "#", seq_len(nrow(projRD)))
       projRD
-    }, mc.cores = threads, mc.preschedule = FALSE, mc.set.seed = TRUE) %>% Reduce("rbind", .)
-
+    # }, mc.cores = threads, mc.preschedule = FALSE, mc.set.seed = TRUE) %>% Reduce("rbind", .)
+    }) %>% Reduce("rbind", .)
     if (verbose) message("Complete!")
 
 
@@ -555,7 +555,9 @@ extract_data <- function(query,
         stop("No overlap between query and subject found.")
       }
       # Get the data matrix
-      dat <- as.matrix(SummarizedExperiment::assay(se_sub))
+      #dat <- as.matrix(SummarizedExperiment::assay(se_sub)) #is this a bug?
+      dat <- as(SummarizedExperiment::assay(subject), "dgCMatrix")
+      # mat <- dat[fidx, , drop = FALSE]
       # Find overlaps and resolve duplicates
       hits <- data.table::as.data.table(GenomicRanges::findOverlaps(query, SummarizedExperiment::rowRanges(se_sub), ignore.strand = ignore_strand))
     } else if (subject_type == "Seurat") {
@@ -566,7 +568,7 @@ extract_data <- function(query,
     # Continue processing overlaps
     fs <- names(query) <- paste("f", seq_along(query), sep = "_")
     # Calculate statistics for duplicate resolution
-    hits$var <- rowVars(dat)[hits$subjectHits]
+    hits$var <- sparseRowVariances(dat)[hits$subjectHits]
     hits$mean <- Matrix::rowMeans(dat)[hits$subjectHits]
     hits$disp <- sqrt(hits$var) / hits$mean * 100
     # Resolve duplicates
