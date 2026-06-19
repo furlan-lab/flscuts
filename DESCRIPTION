@@ -23,6 +23,8 @@ Imports:
   Seurat,
   Matrix,
   Rcpp (>= 1.0.12)
+Suggests:
+  pbmcapply
 LinkingTo: Rcpp
 License: MIT + file LICENSE
 Encoding: UTF-8

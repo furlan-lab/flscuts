@@ -1,151 +1,242 @@
-#' Project data from one object into the UMAP embedding a single cell object
+#' Project data into a single-cell UMAP embedding (m3addon-faithful, pbmclapply variant)
 #'
-#' @description Adapted from: ArchR: An integrative and scalable software package for single-cell chromatin accessibility analysis
-#' Jeffrey M. Granja, M. Ryan Corces, Sarah E. Pierce, S. Tansu Bagdatli, Hani Choudhry, Howard Y. Chang, William J. Greenleaf
-#' doi: https://doi.org/10.1101/2020.04.28.066498
+#' @description This is a port of the m3addon `project_data`
+#' (\url{https://github.com/scfurl/m3addon/blob/master/R/project_data.R}) adapted to
+#' read from the object layout produced by this package's [iterative_LSI()] /
+#' [run_umap()] (i.e. `int_metadata$LSI_model` for the LSI model and
+#' `reduce_dim_aux[["UMAP"]]$model$umap_model` for the in-memory UMAP model), so it can be
+#' run head-to-head against [project_data()] on the *same* projector/projectee objects.
 #'
-#' @param projector cell_data_set object with a reduced dimension matrix (currently LSI supported) as specified in
-#' reduced_dim argument and a model used to create a low dimensional embedding
-#' @param projectee a SummarizedExperiment type object (cell_data_set currently supported) to be projected using
-#' the models contained in the projector
-#' @param make_pseudo_single_cells whether to make pseudo-single cells from the data in the projectee (set this to true for bulk data)
-#' @param ncells_coembedding number of cells in the projector to use in in the co-embedding with simulated single cells; default is 5000, will automatically
-#' default to the total number of cells in the projector if less than this value.
-#' @param reduced_dim A string specifying the reducedDim (currently LSI and PCA supported).
-#' @param embedding A string specifying embedding type (currently UMAP supported).
-#' @param n An integer specifying the number of subsampled "pseudo single cells" per bulk sample.  Note this is only relevant if
-#' make_pseudo_single_cells is TRUE
-#' @param verbose A boolean value indicating whether to use verbose output during execution of this function. Can be set to FALSE for a cleaner output.
-#' @param threads The number of threads used for parallel execution
+#' The only intentional algorithmic difference from [project_data()] is the pseudo
+#' single-cell simulation step: this function uses m3addon's parallel
+#' `pbmcapply::pbmclapply` loop, whereas [project_data()] uses a serial `lapply`.
+#'
+#' Adapted from: ArchR: An integrative and scalable software package for single-cell
+#' chromatin accessibility analysis. Granja, Corces, Pierce, Bagdatli, Choudhry, Chang,
+#' Greenleaf. doi: https://doi.org/10.1101/2020.04.28.066498
+#'
+#' @inheritParams project_data
+#' @param use_saved_umap_model Logical. If `TRUE`, the in-memory UMAP model is
+#' round-tripped through [save_umap_model()] / [load_umap_model()] before
+#' `uwot::umap_transform`, which rebuilds the Annoy nearest-neighbor index from disk
+#' (as the original m3addon `project_data` does). Use this to test whether a stale
+#' in-memory `nn_index$ann` pointer (e.g. after the projector was saved/reloaded via
+#' `readRDS`/`qs_read`) is degrading the projection. Default is `FALSE`.
+#' @return A `SimpleList` with the same structure as [project_data()]:
+#' `projectedUMAP`, `singleCellUMAP`, and `projectedReducedDims`.
 #' @export
 
 project_data2 <- function(
     projector = NULL,
     projectee = NULL,
     ncells_coembedding = 5000,
-    scale=F,
+    scale = FALSE,
     reduced_dim = "LSI",
     embedding = "UMAP",
     make_pseudo_single_cells = FALSE,
     features = c("annotation-based", "range-based"),
     n = 250,
+    projectee_label_col = NULL,
+    use_saved_umap_model = FALSE,
     verbose = TRUE,
     threads = 6,
-    seed=2020,
-    force=F
+    seed = 2020,
+    force = FALSE
 ){
-  check_input(input = projector, name = "projector", valid = c("cell_data_set"))
-  check_input(input = projectee, name = "projectee", valid = c("SummarizedExperiment"))
-  check_input(input = ncells_coembedding , name = "ncells_coembedding ", valid = c("numeric"))
-  check_input(input = reduced_dim, name = "reduced_dim", valid = c("character"))
-  check_input(input = embedding, name = "embedding", valid = c("character", "null"))
-  check_input(input = n, name = "n", valid = c("integer"))
-  check_input(input = verbose, name = "verbose", valid = c("boolean"))
-  check_input(input = threads, name = "threads", valid = c("integer"))
-
-  #backwards compatible
-  if(reduced_dim=="LSI"){
-    reduced_dim_aux<-"iLSI"
-  }else{
-    reduced_dim_aux<-"PCA"
+  features <- match.arg(features)
+  if (!requireNamespace("pbmcapply", quietly = TRUE)) {
+    stop("Package 'pbmcapply' is required by project_data2() but is not installed.")
   }
+
+  # Check object types (mirrors project_data)
+  if (methods::is(projector, "Seurat")) {
+    object_type_projector <- "seurat"
+  } else if (methods::is(projector, "cell_data_set")) {
+    object_type_projector <- "monocle3"
+  } else {
+    stop("The projector must be a Seurat object or a Monocle3 cell_data_set object.")
+  }
+
+  if (methods::is(projectee, "Seurat") || methods::is(projectee, "cell_data_set") || methods::is(projectee, "SummarizedExperiment")) {
+    object_type_projectee <- "seurat_or_sce"
+  } else {
+    stop("The projectee must be a Seurat object, a Monocle3 cell_data_set object, or a SummarizedExperiment object.")
+  }
+
   ##################################################
-  # Extract data from bulk
+  # Extract reduced dimensions, embedding and LSI model from the projector
   ##################################################
-  rD<-reducedDims(projector)[[reduced_dim]]
-  #rD_num_dum<-projector@preprocess_aux$iLSI$num_dim
-  match(names(projector@reduce_dim_aux), embedding)
-  embedding_num_dim<-projector@reduce_dim_aux[[embedding]]$num_dim
-
-  sc_embedding<-reducedDims(projector)[[embedding]]
-  rownames(sc_embedding)<-colnames(projector)
-
-  if(features[1] %in% "annotation-based"){
-    query<-projector@preprocess_aux[[reduced_dim_aux]]$features
-    shared_rd<-extract_data(query, projectee)
+  if (object_type_projector == "monocle3") {
+    if (!reduced_dim %in% names(SingleCellExperiment::reducedDims(projector))) {
+      stop(paste("Reduced dimension", reduced_dim, "not found in projector"))
+    }
+    rD <- SingleCellExperiment::reducedDims(projector)[[reduced_dim]]
+    if (!embedding %in% names(SingleCellExperiment::reducedDims(projector))) {
+      stop(paste("Embedding", embedding, "not found in projector"))
+    }
+    sc_embedding <- SingleCellExperiment::reducedDims(projector)[[embedding]]
+    rownames(sc_embedding) <- colnames(projector)
+    if (is.null(projector@int_metadata$LSI_model)) {
+      stop("LSI model not found in projector object.")
+    }
+    lsi_model <- projector@int_metadata$LSI_model
+  } else if (object_type_projector == "seurat") {
+    if (!reduced_dim %in% names(projector@reductions)) {
+      stop(paste("Reduced dimension", reduced_dim, "not found in projector"))
+    }
+    rD <- projector@reductions[[reduced_dim]]@cell.embeddings
+    if (!embedding %in% names(projector@reductions)) {
+      stop(paste("Embedding", embedding, "not found in projector"))
+    }
+    sc_embedding <- projector@reductions[[embedding]]@cell.embeddings
+    rownames(sc_embedding) <- colnames(projector)
+    if (is.null(projector@reductions[[reduced_dim]]@misc$svd)) {
+      stop("LSI model not found in projector object.")
+    }
+    lsi_model <- projector@reductions[[reduced_dim]]@misc
   }
 
-  if(features[1] %in% "range-based"){
-    query<-projector@preprocess_aux[[reduced_dim_aux]]$granges
-    shared_rd<-extract_data(query, projectee)
+  embedding_num_dim <- lsi_model$num_dim
+
+  # Features used in the reduced dimension
+  if (features == "annotation-based") {
+    features_used <- lsi_model$features
+  } else if (features == "range-based") {
+    if (object_type_projector == "monocle3") {
+      features_used <- lsi_model$granges
+    } else if (object_type_projector == "seurat") {
+      stop("Range-based features not supported for Seurat objects.")
+    }
   }
 
-  message(paste0("Overlap Ratio of Reduced Dims Features = ", round(shared_rd$overlap, 3)))
+  # Extract shared data between projector and projectee
+  shared_rd <- extract_data(features_used, projectee)
+  overlap_ratio <- shared_rd$overlap
+  message(paste0("Overlap Ratio of Reduced Dims Features = ", round(overlap_ratio, 3)))
 
-  if( (shared_rd$overlap) < 0.25 ){
-    if(force){
-      warning("Less than 25% of the features are present in this bulk RNA data set! Continuing since force = TRUE!")
-    }else{
-      stop("Less than 25% of the features are present in this bulk RNA data set! Set force = TRUE to continue!")
+  if (overlap_ratio < 0.25) {
+    if (force) {
+      warning("Less than 25% of the features are present in the projectee data set! Continuing since force = TRUE!")
+    } else {
+      stop("Less than 25% of the features are present in the projectee data set! Set force = TRUE to continue!")
     }
   }
 
   ##################################################
   # Simulate single cells and project using original LSI/SVD model
+  # (m3addon-faithful: parallel pbmcapply::pbmclapply)
   ##################################################
-  if(make_pseudo_single_cells){
-    depthN <- round(sum(projector@preprocess_aux[[reduced_dim_aux]]$row_sums / nrow(rD)))
+  if (make_pseudo_single_cells) {
+    depthN <- round(sum(lsi_model$row_sums) / nrow(rD))
     nRep <- 5
     n2 <- ceiling(n / nRep)
-    ratios <- c(2, 1.5, 1, 0.5, 0.25) #range of ratios of number of fragments
+    ratios <- c(2, 1.5, 1, 0.5, 0.25) # range of ratios of number of fragments
 
-    if(verbose) message(paste0("Simulating ", (n * dim(projectee)[2]), " single cells"))
+    if (verbose) message(paste0("Simulating ", (n * dim(shared_rd$mat)[2]), " single cells"))
     projRD <- pbmcapply::pbmclapply(seq_len(ncol(shared_rd$mat)), function(x){
       counts <- shared_rd$mat[, x]
       counts <- rep(seq_along(counts), counts)
       simMat <- lapply(seq_len(nRep), function(y){
         ratio <- ratios[y]
         simMat <- matrix(sample(x = counts, size = ceiling(ratio * depthN) * n2, replace = TRUE), ncol = n2)
-        simMat <- Matrix::summary(as(simMat, "dgCMatrix"))[,-1,drop=FALSE]
-        simMat[,1] <- simMat[,1] + (y - 1) * n2
+        simMat <- Matrix::summary(as(simMat, "dgCMatrix"))[, -1, drop = FALSE]
+        simMat[, 1] <- simMat[, 1] + (y - 1) * n2
         simMat
-      }) %>%  Reduce("rbind", .)
-      simMat <- Matrix::sparseMatrix(i = simMat[,2], j = simMat[,1], x = rep(1, nrow(simMat)), dims = c(nrow(shared_rd$mat), n2 * nRep))
-      projRD <- as.matrix(projectLSI(simMat, LSI = projector@preprocess_aux[[reduced_dim_aux]], verbose = verbose))
+      }) %>% Reduce("rbind", .)
+      simMat <- Matrix::sparseMatrix(i = simMat[, 2], j = simMat[, 1], x = rep(1, nrow(simMat)), dims = c(nrow(shared_rd$mat), n2 * nRep))
+      projRD <- as.matrix(projectLSI(simMat, LSI = lsi_model, verbose = verbose))
       rownames(projRD) <- paste0(colnames(shared_rd$mat)[x], "#", seq_len(nrow(projRD)))
       projRD
-    }, mc.cores =  threads) %>% Reduce("rbind", .)
+    }, mc.cores = threads) %>% Reduce("rbind", .)
 
     # Deal with NaN
-    if(any(is.nan(projRD))){
-      projRD[is.nan(projRD)]<-0
+    if (any(is.nan(projRD))) {
+      projRD[is.nan(projRD)] <- 0
       warning("NaN calculated during single cell generation")
     }
 
-    if(scale){
+    if (scale) {
       projRD <- scale_dims(projRD)
     }
-  }else{
-    projRD <- as.matrix(projectLSI(shared_rd$mat, LSI = projector@preprocess_aux[[reduced_dim_aux]], verbose = verbose))
+    if (is.null(projectee_label_col)) {
+      if (methods::is(projectee, "Seurat")) {
+        projectee_labels <- unlist(sapply(colnames(projectee), function(x) rep(x, n)))
+      } else {
+        projectee_labels <- unlist(sapply(rownames(colData(projectee)), function(x) rep(x, n)))
+      }
+    } else {
+      if (methods::is(projectee, "Seurat")) {
+        projectee_labels <- unlist(sapply(projectee@meta.data[[projectee_label_col]], function(x) rep(x, n)))
+      } else {
+        projectee_labels <- unlist(sapply(colData(projectee)[[projectee_label_col]], function(x) rep(x, n)))
+      }
+    }
+  } else {
+    projRD <- as.matrix(projectLSI(shared_rd$mat, LSI = lsi_model, verbose = verbose))
+    if (is.null(projectee_label_col)) {
+      if (methods::is(projectee, "Seurat")) {
+        projectee_labels <- colnames(projectee)
+      } else {
+        projectee_labels <- rownames(colData(projectee))
+      }
+    } else {
+      if (methods::is(projectee, "Seurat")) {
+        projectee_labels <- projectee@meta.data[[projectee_label_col]]
+      } else {
+        projectee_labels <- colData(projectee)[[projectee_label_col]]
+      }
+    }
   }
 
   ##################################################
   # Check LSI and Embedding SVD columns
   ##################################################
-
-
-  if(embedding_num_dim != ncol(projRD)){
-    stop("Error incosistency found with matching LSI dimensions to those used in embedding")
+  if (embedding_num_dim != ncol(projRD)) {
+    stop("Error inconsistency found with matching LSI dimensions to those used in embedding")
   }
 
   ##################################################
-  # Get Previous UMAP Model
+  # Get Previous UMAP Model (in-memory, as in project_data)
   ##################################################
-  #umap_model <- load_umap_model(projector@reduce_dim_aux[[embedding]]$model_file, embedding_num_dim)
-  umap_model <- projector@reduce_dim_aux[["UMAP"]]$model$umap_model
+  if (object_type_projector == "monocle3") {
+    if (!is.null(projector@reduce_dim_aux[["UMAP"]]$model$umap_model)) {
+      umap_model <- projector@reduce_dim_aux[["UMAP"]]$model$umap_model
+    } else {
+      stop("UMAP model not found in projector object")
+    }
+  } else if (object_type_projector == "seurat") {
+    if (!is.null(projector@reductions[[embedding]]@misc$model)) {
+      umap_model <- projector@reductions[[embedding]]@misc$model
+    } else {
+      stop("UMAP model not found in projector object")
+    }
+  }
+
+  # Optionally round-trip the in-memory UMAP model through save_umap_model ->
+  # load_umap_model. This rebuilds the Annoy nearest-neighbor index from disk,
+  # exactly as the original m3addon project_data does. Use this to test whether a
+  # stale in-memory nn_index$ann pointer (e.g. after the projector was saved/
+  # reloaded via readRDS/qs_read) is degrading the projection.
+  if (use_saved_umap_model) {
+    if (verbose) message("Rebuilding UMAP model via save_umap_model -> load_umap_model")
+    tmp_model_file <- tempfile(fileext = ".uwot.tar")
+    on.exit(if (file.exists(tmp_model_file)) unlink(tmp_model_file), add = TRUE)
+    save_umap_model(umap_model, tmp_model_file)
+    umap_model <- load_umap_model(tmp_model_file, num_dim = embedding_num_dim)
+  }
+
   ##################################################
   # subsample
   ##################################################
   idx <- sort(sample(seq_len(nrow(rD)), min(nrow(rD), ncells_coembedding)))
-  rD_ss <- rD[idx,,drop=FALSE]
+  rD_ss <- rD[idx, , drop = FALSE]
 
   ##################################################
   # Project UMAP
   ##################################################
-  if(verbose & make_pseudo_single_cells) message(paste0("Projecting simulated doublets onto manifold saved in: ", projector@reduce_dim_aux[[embedding]]$model_file))
-  if(verbose & !make_pseudo_single_cells) message(paste0("Projecting projectee cells onto manifold saved in: ", projector@reduce_dim_aux[[embedding]]$model_file))
+  if (verbose & make_pseudo_single_cells) message(paste0("Projecting simulated cells onto manifold"))
+  if (verbose & !make_pseudo_single_cells) message(paste0("Projecting projectee cells onto manifold"))
   set.seed(seed)
-  #threads2 <- max(floor(threads/2), 1)
   simUMAP <- uwot::umap_transform(
     X = rbind(rD_ss, projRD),
     model = umap_model,
@@ -153,28 +244,29 @@ project_data2 <- function(
     n_threads = threads
   )
   rownames(simUMAP) <- c(rownames(rD_ss), rownames(projRD))
+
   ##################################################
   # Check correlation of subsampled cells
   ##################################################
-  c1 <- cor(simUMAP[rownames(rD_ss), 1], sc_embedding[rownames(rD_ss),1])
-  c2 <- cor(simUMAP[rownames(rD_ss), 2], sc_embedding[rownames(rD_ss),2])
-  if(min(c1, c2) < 0.8){
-    message(paste0("Warning projection correlation is less than 0.8 (R = ", round(min(c1,c2), 4),").\nThese results may not be accurate because of the lack of heterogeneity in the single cell data."))
+  c1 <- cor(simUMAP[rownames(rD_ss), 1], sc_embedding[rownames(rD_ss), 1])
+  c2 <- cor(simUMAP[rownames(rD_ss), 2], sc_embedding[rownames(rD_ss), 2])
+  if (min(c1, c2) < 0.8) {
+    message(paste0("Warning: projection correlation is less than 0.8 (R = ", round(min(c1, c2), 4), ").\nThese results may not be accurate because of the lack of heterogeneity in the single-cell data."))
   }
 
   dfUMAP <- sc_embedding
   colnames(dfUMAP) <- c("UMAP1", "UMAP2")
   colnames(simUMAP) <- c("UMAP1", "UMAP2")
   dfUMAP <- DataFrame(dfUMAP)
-  dfUMAP$Type <- Rle("single_cell", lengths = nrow(dfUMAP))
+  dfUMAP$projectee_labels <- Rle("single_cell_reference", lengths = nrow(dfUMAP))
 
-  simUMAP <- DataFrame(simUMAP[rownames(projRD),,drop=FALSE])
-  simUMAP$Type <- Rle(stringr::str_split(rownames(simUMAP), pattern = "#", simplify = TRUE)[,1])
+  simUMAP <- DataFrame(simUMAP[rownames(projRD), , drop = FALSE])
+  simUMAP$projectee_labels <- projectee_labels
 
   out <- SimpleList(
-    simulatedBulkUMAP = simUMAP,
+    projectedUMAP = simUMAP,
     singleCellUMAP = dfUMAP,
-    simulatedReducedDims = projRD
+    projectedReducedDims = projRD
   )
   return(out)
 }
