@@ -25,6 +25,8 @@
 #' @param random_seed Integer specifying the random seed for reproducibility. Default is 2020.
 #' @param verbose Logical indicating whether to display progress messages. Default is \code{FALSE}.
 #' @param run_umap Logical indicating whether to run UMAP.
+#' @param monocle_data_layer Character specifying which assay of a Monocle3 `cell_data_set` to use as input: \code{"counts"} (raw counts, the default) or \code{"data"} (log-normalized counts via \code{normalized_counts}). Use \code{"counts"} to match the m3addon \code{iterative_LSI}/\code{project_data} convention; bulk projectees are extracted as raw counts, so training on \code{"counts"} keeps the TF-IDF normalization consistent between reference and projectee. Default is \code{"counts"}.
+#' @param seurat_data_layer Character specifying which layer of a Seurat assay to use as input (e.g. \code{"counts"} or \code{"data"}). Default is \code{"counts"}.
 #' @param return_object Logical indicating whether to return the updated input object with LSI reduction and clustering results. Default is \code{TRUE}.
 #' @param ... Additional arguments passed to lower-level functions.
 #'
@@ -76,8 +78,8 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
                                                                                                                                             3000), exclude_features = NULL, binarize = FALSE, scale = TRUE,
                            log_transform = TRUE, LSI_method = 1, partition_qval = 0.05, assay = "RNA",
                            seed = 2020, scale_to = 10000, leiden_k = 20, leiden_weight = FALSE,
-                           leiden_iter = 1, verbose = FALSE, return_iterations = FALSE, run_umap = FALSE, 
-                           seurat_data_layer = "data", monocle_data_layer = "data", ...)
+                           leiden_iter = 1, verbose = FALSE, return_iterations = FALSE, run_umap = FALSE,
+                           seurat_data_layer = "counts", monocle_data_layer = "counts", ...)
 {
   # Check object type
   if (is(object, "Seurat")) {
@@ -107,6 +109,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     } else {
       if (monocle_data_layer=="counts") {
         mat <- counts(object)  # or assay(object)
+        mat <- mat[!rownames(mat) %in% exclude_features, ]
       } else {
         # Get normalized data (similar to Seurat's "data" layer)
         mat <- normalized_counts(object, norm_method = "log")
@@ -226,7 +229,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
       object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
                                            row_sums = row_sums, seed=seed, binarize=binarize,
                                            scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                           granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
+                                           granges=rowRanges(object)[original_features[f_idx]], LSI_method=LSI_method, outliers=NULL)
       # object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
       #                                      row_sums = row_sums, seed=seed, binarize=binarize,
       #                                      scale_to=scale_to, num_dim=num_dim, resolution=resolution,
@@ -317,7 +320,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
         object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
                                    row_sums = row_sums, seed=seed, binarize=binarize,
                                    scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                   granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
+                                   granges=rowRanges(object)[original_features[f_idx]], LSI_method=LSI_method, outliers=NULL)
       } else if (object_type == "seurat") {
           # object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
           #                                       row_sums = row_sums, seed=seed, binarize=binarize,
