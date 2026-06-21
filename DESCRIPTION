@@ -1,7 +1,7 @@
 Package: flscuts
 Type: Package
 Title: Furlan Lab Shortcuts
-Version: 0.1.1
+Version: 0.2.0
 Authors@R: 
     person("Scott", "Furlan", , "scottfurlan@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0003-3007-9840"))
@@ -31,4 +31,4 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 SystemRequirements: C++11
 URL: https://furlan-lab.github.io/flscuts/
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3

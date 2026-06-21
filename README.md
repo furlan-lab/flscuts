@@ -2,7 +2,7 @@
 
 ### Furlan Lab Shortcuts
 
-version 0.1.1
+version 0.2.0
 
 <p align="center"><img src="man/figures/flscuts.png" alt="" width="500"></a></p>
 <hr>

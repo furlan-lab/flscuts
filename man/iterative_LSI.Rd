@@ -17,6 +17,7 @@ iterative_LSI(
   log_transform = TRUE,
   LSI_method = 1,
   partition_qval = 0.05,
+  assay = "RNA",
   seed = 2020,
   scale_to = 10000,
   leiden_k = 20,
@@ -25,6 +26,8 @@ iterative_LSI(
   verbose = FALSE,
   return_iterations = FALSE,
   run_umap = FALSE,
+  seurat_data_layer = "counts",
+  monocle_data_layer = "counts",
   ...
 )
 }
@@ -60,6 +63,10 @@ iterative_LSI(
 \item{verbose}{Logical indicating whether to display progress messages. Default is \code{FALSE}.}
 
 \item{run_umap}{Logical indicating whether to run UMAP.}
+
+\item{seurat_data_layer}{Character specifying which layer of a Seurat assay to use as input (e.g. \code{"counts"} or \code{"data"}). Default is \code{"counts"}.}
+
+\item{monocle_data_layer}{Character specifying which assay of a Monocle3 \code{cell_data_set} to use as input: \code{"counts"} (raw counts, the default) or \code{"data"} (log-normalized counts via \code{normalized_counts}). Use \code{"counts"} to match the m3addon \code{iterative_LSI}/\code{project_data} convention; bulk projectees are extracted as raw counts, so training on \code{"counts"} keeps the TF-IDF normalization consistent between reference and projectee. Default is \code{"counts"}.}
 
 \item{...}{Additional arguments passed to lower-level functions.}
 
