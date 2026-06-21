@@ -25,8 +25,6 @@
 #' @param random_seed Integer specifying the random seed for reproducibility. Default is 2020.
 #' @param verbose Logical indicating whether to display progress messages. Default is \code{FALSE}.
 #' @param run_umap Logical indicating whether to run UMAP.
-#' @param monocle_data_layer Character specifying which assay of a Monocle3 `cell_data_set` to use as input: \code{"counts"} (raw counts, the default) or \code{"data"} (log-normalized counts via \code{normalized_counts}). Use \code{"counts"} to match the m3addon \code{iterative_LSI}/\code{project_data} convention; bulk projectees are extracted as raw counts, so training on \code{"counts"} keeps the TF-IDF normalization consistent between reference and projectee. Default is \code{"counts"}.
-#' @param seurat_data_layer Character specifying which layer of a Seurat assay to use as input (e.g. \code{"counts"} or \code{"data"}). Default is \code{"counts"}.
 #' @param return_object Logical indicating whether to return the updated input object with LSI reduction and clustering results. Default is \code{TRUE}.
 #' @param ... Additional arguments passed to lower-level functions.
 #'
@@ -76,15 +74,14 @@
 iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resolution = c(1e-04,
                                                                                           3e-04, 5e-04), do_tf_idf = TRUE, num_features = c(3000, 3000,
                                                                                                                                             3000), exclude_features = NULL, binarize = FALSE, scale = TRUE,
-                           log_transform = TRUE, LSI_method = 1, partition_qval = 0.05, assay = "RNA",
+                           log_transform = TRUE, LSI_method = 1, partition_qval = 0.05,
                            seed = 2020, scale_to = 10000, leiden_k = 20, leiden_weight = FALSE,
-                           leiden_iter = 1, verbose = FALSE, return_iterations = FALSE, run_umap = FALSE,
-                           seurat_data_layer = "counts", monocle_data_layer = "counts", ...)
+                           leiden_iter = 1, verbose = FALSE, return_iterations = FALSE, run_umap = FALSE, ...)
 {
   # Check object type
   if (is(object, "Seurat")) {
     object_type <- "seurat"
-  } else if (class(object)=="cell_data_set") {
+  } else if (is(object, "cell_data_set")) {
     object_type <- "monocle3"
   } else {
     stop("The object must be a Seurat object or a Monocle3 cell_data_set object.")
@@ -104,31 +101,19 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
   # Get the expression matrix
   if (!is.null(exclude_features)) {
     if (object_type == "seurat") {
-      mat <- GetAssayData(object, assay = assay, layer = seurat_data_layer)
+      mat <- GetAssayData(object)
       mat <- mat[!rownames(mat) %in% exclude_features, ]
     } else {
-      if (monocle_data_layer=="counts") {
-        mat <- counts(object)  # or assay(object)
-        mat <- mat[!rownames(mat) %in% exclude_features, ]
-      } else {
-        # Get normalized data (similar to Seurat's "data" layer)
-        mat <- normalized_counts(object, norm_method = "log")
-        mat <- mat[!rownames(mat) %in% exclude_features, ]
-      }
+      mat <- assay(object)
+      mat <- mat[!rownames(mat) %in% exclude_features, ]
     }
   } else {
     if (object_type == "seurat") {
-      mat <- GetAssayData(object, assay = assay, layer = seurat_data_layer)
+      mat <- GetAssayData(object)
     } else {
-      if (monocle_data_layer=="counts") {
-        mat <- counts(object)  # or assay(object)
-      } else {
-        # Get normalized data (similar to Seurat's "data" layer)
-        mat <- normalized_counts(object, norm_method = "log")
-      }
+      mat <- assay(object)
     }
   }
-  mat <- mat[order(rownames(mat)), ]
 
   original_features <- rownames(mat)
   set.seed(seed)
@@ -141,10 +126,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
   outlist <- list()
 
   if (scale) {
-    #matNorm <- t(t(mat)/Matrix::colSums(mat)) * scale_to ### THIS EXPANDS MEMORY
-    col_sums <- Matrix::colSums(mat)
-    matNorm <- Matrix::tcrossprod(mat, Diagonal(x = 1 / col_sums)) * scale_to
-    colnames(matNorm) <- colnames(mat)
+    matNorm <- t(t(mat)/Matrix::colSums(mat)) * scale_to
   } else {
     matNorm <- mat
   }
@@ -162,16 +144,14 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     f_idx <- which(rownames(mat) %in% starting_features)
   } else {
     # Compute variances and select features
-    feature_vars <- sparseRowVariances(matNorm)
-
-    # if (requireNamespace("matrixStats", quietly = TRUE)) {
-    #   feature_vars <- matrixStats::rowVars(as.matrix(matNorm)) ###THIS NEEDS TO BE FIXED
-    # } else {
-    #   stop("Package 'matrixStats' is required for variance calculation.")
-    # }
+    if (requireNamespace("matrixStats", quietly = TRUE)) {
+      feature_vars <- matrixStats::rowVars(as.matrix(matNorm))
+    } else {
+      stop("Package 'matrixStats' is required for variance calculation.")
+    }
     f_idx <- head(order(feature_vars, decreasing = TRUE), num_features[1])
   }
-  gc()
+
   if (do_tf_idf) {
     tf <- tf_idf_transform(mat[f_idx, ], method = LSI_method)
     row_sums <- Matrix::rowSums(mat[f_idx, ])
@@ -180,11 +160,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     tf <- mat[f_idx, ]
     row_sums <- Matrix::rowSums(mat[f_idx, ])
   }
-  gc()
-  if(is.null(colnames(tf))){
-    colnames(tf)<- colnames(mat)
-  }
-  message("Computing SVD")
+
   svd_list <- svd_lsi(tf, num_dim, mat_only = FALSE)
 
   # Perform clustering
@@ -199,8 +175,8 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     # For Seurat, use FindNeighbors and FindClusters
     object@reductions[["lsi"]] <- Seurat::CreateDimReducObject(embeddings = svd_list$matSVD,
                                                                key = "LSI_", assay = Seurat::DefaultAssay(object))
-    object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k, nn.method  = "rann")
-    object <- Seurat::FindClusters(object, resolution = resolution[1], algorithm = 4, random.seed = seed, verbose = verbose)
+    object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k)
+    object <- Seurat::FindClusters(object, resolution = resolution[1], algorithm = 1, random.seed = seed, verbose = verbose)
     clusters <- Seurat::Idents(object)
   }
 
@@ -226,23 +202,11 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
       names(partitions) <- row.names(colData(object))
       object@clusters[["LSI"]] <- list(cluster_result = cluster_result,
                                        partitions = partitions, clusters = clusters)
-      object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
-                                           row_sums = row_sums, seed=seed, binarize=binarize,
-                                           scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                           granges=rowRanges(object)[original_features[f_idx]], LSI_method=LSI_method, outliers=NULL)
-      # object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
-      #                                      row_sums = row_sums, seed=seed, binarize=binarize,
-      #                                      scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-      #                                      granges=NULL, LSI_method=LSI_method, outliers=NULL)
       if (run_umap){
         object <- run_umap(object, ...)
       }
     } else if (object_type == "seurat") {
       # Clusters are already stored in object@meta.data
-      # object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
-      #                                         row_sums = row_sums, seed=seed, binarize=binarize,
-      #                                         scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-      #                                         granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
       object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
                                               row_sums = row_sums, seed=seed, binarize=binarize,
                                               scale_to=scale_to, num_dim=num_dim, resolution=resolution,
@@ -264,11 +228,8 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
   # For multiple iterations
   for (iteration in 2:length(resolution)) {
     message("Performing LSI/SVD for iteration ", iteration, "....")
-    # feature_vars <- sparseRowVariances(matNorm)
-    # f_idx <- head(order(-feature_vars, rownames(matNorm)),
-    #               num_features[iteration])
     f_idx <- head(order(matrixStats::rowVars(clusterMat), decreasing = TRUE),
-                   num_features[iteration])
+                  num_features[iteration])
     if (do_tf_idf) {
       tf <- tf_idf_transform(mat[f_idx, ], method = LSI_method)
       tf@x[is.na(tf@x)] <- 0
@@ -276,9 +237,6 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     } else {
       tf <- mat[f_idx, ]
       row_sums <- Matrix::rowSums(mat[f_idx, ])
-    }
-    if(is.null(colnames(tf))){
-      colnames(tf)<- colnames(mat)
     }
 
     svd_list <- svd_lsi(tf, num_dim, mat_only = FALSE)
@@ -293,8 +251,8 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     } else if (object_type == "seurat") {
       object@reductions[["lsi"]] <- Seurat::CreateDimReducObject(embeddings = svd_list$matSVD,
                                                                  key = "LSI_", assay = Seurat::DefaultAssay(object))
-      object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k, nn.method  = "rann")
-      object <- Seurat::FindClusters(object, resolution = resolution[iteration], algorithm = 4, random.seed = seed, verbose = verbose)
+      object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k)
+      object <- Seurat::FindClusters(object, resolution = resolution[iteration], algorithm = 1, random.seed = seed, verbose = verbose)
       clusters <- Seurat::Idents(object)
     }
 
@@ -317,19 +275,11 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
         names(partitions) <- row.names(colData(object))
         object@clusters[["LSI"]] <- list(cluster_result = cluster_result,
                                          partitions = partitions, clusters = clusters)
-        object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
-                                   row_sums = row_sums, seed=seed, binarize=binarize,
-                                   scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                   granges=rowRanges(object)[original_features[f_idx]], LSI_method=LSI_method, outliers=NULL)
       } else if (object_type == "seurat") {
-          # object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
-          #                                       row_sums = row_sums, seed=seed, binarize=binarize,
-          #                                       scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-          #                                       granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
-          object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
-                                                  row_sums = row_sums, seed=seed, binarize=binarize,
-                                                  scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                                  granges=NULL, LSI_method=LSI_method, outliers=NULL)
+        object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
+                                                row_sums = row_sums, seed=seed, binarize=binarize,
+                                                scale_to=scale_to, num_dim=num_dim, resolution=resolution,
+                                                granges=NULL, LSI_method=LSI_method, outliers=NULL)
       }
       if (return_iterations) {
         it_count <- paste0("iteration_", iteration)
@@ -357,7 +307,6 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
 #' @importFrom uwot umap
 #' @export
 #'
-#' 
 run_umap <- function(object, ...) {
   # Check object type
   if (is(object, "Seurat")) {
@@ -388,153 +337,30 @@ run_umap <- function(object, ...) {
 
   # Capture additional arguments from ...
   user_params <- list(...)
-  
+
   # Merge user-provided parameters with the default ones
   umap_params <- modifyList(default_params, user_params)
 
   if (object_type == "monocle3") {
-    if (umap_params$verbose) 
-      message("Running Uniform Manifold Approximation and Projection")
-    
-    object <- monocle3:::initialize_reduce_dim_metadata(object, "UMAP")
-    object <- monocle3:::initialize_reduce_dim_model_identity(object, "UMAP")
-    
-    # SET SEED BEFORE UMAP
-    set.seed(2016)
-    
-    # Get LSI embeddings
-    lsi_matrix <- as.matrix(SingleCellExperiment::reducedDims(object)[["LSI"]])
-    
-    # Run UMAP directly (not the two-step process)
-    umap_params$X <- lsi_matrix
-    umap_model <- do.call(uwot::umap, umap_params)
-    
-    # Extract embedding
-    umap_res <- umap_model$embedding
-    row.names(umap_res) <- colnames(object)
-    
-    SingleCellExperiment::reducedDims(object)[["UMAP"]] <- umap_res
-    object@reduce_dim_aux[["UMAP"]][["model"]][["umap_model"]] <- umap_model
-    
-    return(object)
+    ##TODO
+    print("Under construction for Monocle3 objects.")
+    return(0)
   }
 
   if (object_type == "seurat") {
-    # SET SEED BEFORE UMAP
-    set.seed(2016)
-    
     umap_params$X <- object@reductions$lsi@cell.embeddings
-    
     # Run UMAP with the final set of parameters
-    umap_res <- do.call(uwot::umap, umap_params)
-    
+    umap_res <- do.call(umap, umap_params)
+    #umap_res = umap(umap_params$X, ret_model = TRUE,  ret_extra = "model", verbose = umap_params$verbose)
     # Rename UMAP dimensions
     colnames(umap_res$embedding) <- c("UMAP_1", "UMAP_2")
-    
     # Store the UMAP embedding in the Seurat object
-    object@reductions[["umap"]] <- Seurat::CreateDimReducObject(
-      embeddings = umap_res$embedding, 
-      key = "UMAP_", 
-      assay = DefaultAssay(object)
-    )
+    object@reductions[["umap"]] <- Seurat::CreateDimReducObject(embeddings = umap_res$embedding, key = "UMAP_", assay = DefaultAssay(object))
     object@reductions[["umap"]]@misc$model <- umap_res
-    
+    # Optionally return the modified object
     return(object)
   }
 }
-# run_umap <- function(object, ...) {
-#   # Check object type
-#   if (is(object, "Seurat")) {
-#     object_type <- "seurat"
-#   } else if (is(object, "cell_data_set")) {
-#     object_type <- "monocle3"
-#   } else {
-#     stop("The object must be a Seurat object or a Monocle3 cell_data_set object.")
-#   }
-
-#   # Default UMAP parameters
-#   default_params <- list(
-#     n_neighbors = 30L,
-#     n_components = 2L,
-#     metric = "cosine",
-#     n_epochs = NULL,
-#     learning_rate = 1,
-#     min_dist = 0.3,
-#     spread = 1,
-#     set_op_mix_ratio = 1,
-#     local_connectivity = 1L,
-#     repulsion_strength = 1,
-#     negative_sample_rate = 5,
-#     verbose = TRUE,
-#     ret_model = TRUE,
-#     ret_nn = TRUE
-#   )
-
-#   # Capture additional arguments from ...
-#   user_params <- list(...)
-
-#   # Merge user-provided parameters with the default ones
-#   umap_params <- modifyList(default_params, user_params)
-
-#   if (object_type == "monocle3") {
-#         #object <- monocle3:::add_citation(object, "UMAP")
-#         if (default_params$verbose) 
-#             message("Running Uniform Manifold Approximation and Projection")
-#         object <- monocle3:::initialize_reduce_dim_metadata(object, "UMAP")
-#         object <- monocle3:::initialize_reduce_dim_model_identity(object, "UMAP")
-    
-#         umap_model <- uwot::umap(as.matrix(SingleCellExperiment::reducedDims(object)[["LSI"]]), n_components = default_params$n_components, 
-#             metric = default_params$metric, min_dist = default_params$min_dist, n_neighbors = default_params$n_neighbors, 
-#             ret_model = TRUE)
-#         set.seed(2016)
-#         umap_res <- uwot::umap_transform(X = as.matrix(SingleCellExperiment::reducedDims(object)[["LSI"]]), 
-#             model = umap_model, n_threads = 1)
-#         row.names(umap_res) <- colnames(object)
-#         SingleCellExperiment::reducedDims(object)[["UMAP"]] <- umap_res
-#         # object@reduce_dim_aux[["UMAP"]][["model"]][["umap_preprocess_method"]] <- preprocess_method
-#         # object@reduce_dim_aux[["UMAP"]][["model"]][["max_components"]] <- max_components
-#         # object@reduce_dim_aux[["UMAP"]][["model"]][["umap_metric"]] <- umap.metric
-#         # object@reduce_dim_aux[["UMAP"]][["model"]][["umap_min_dist"]] <- umap.min_dist
-#         # object@reduce_dim_aux[["UMAP"]][["model"]][["umap_n_neighbors"]] <- umap.n_neighbors
-#         # object@reduce_dim_aux[["UMAP"]][["model"]][["umap_fast_sgd"]] <- umap.fast_sgd
-#         object@reduce_dim_aux[["UMAP"]][["model"]][["umap_model"]] <- umap_model
-#         # matrix_id <- get_unique_id(SingleCellExperiment::reducedDims(object)[["UMAP"]])
-#         # reduce_dim_matrix_identity <- get_reduce_dim_matrix_identity(cds, 
-#         #     preprocess_method)
-#         # cds <- set_reduce_dim_matrix_identity(cds, "UMAP", "matrix:UMAP", 
-#         #     matrix_id, reduce_dim_matrix_identity[["matrix_type"]], 
-#         #     reduce_dim_matrix_identity[["matrix_id"]], "matrix:UMAP", 
-#         #     matrix_id)
-#         # reduce_dim_model_identity <- get_reduce_dim_model_identity(cds, 
-#         #     preprocess_method)
-#         # cds <- set_reduce_dim_model_identity(cds, "UMAP", "matrix:UMAP", 
-#         #     matrix_id, reduce_dim_model_identity[["model_type"]], 
-#         #     reduce_dim_model_identity[["model_id"]])
-#         # if (build_nn_index) {
-#         #     nn_index <- make_nn_index(subject_matrix = SingleCellExperiment::reducedDims(cds)[[reduction_method]], 
-#         #         nn_control = nn_control, verbose = verbose)
-#         #     cds <- set_cds_nn_index(cds = cds, reduction_method = reduction_method, 
-#         #         nn_index = nn_index, verbose = verbose)
-#         # }
-#         # else cds <- clear_cds_nn_index(cds = cds, reduction_method = reduction_method, 
-#         #     nn_method = "all")
-#       return(object)
-#   }
-
-#   if (object_type == "seurat") {
-#     umap_params$X <- object@reductions$lsi@cell.embeddings
-#     # Run UMAP with the final set of parameters
-#     umap_res <- do.call(umap, umap_params)
-#     #umap_res = umap(umap_params$X, ret_model = TRUE,  ret_extra = "model", verbose = umap_params$verbose)
-#     # Rename UMAP dimensions
-#     colnames(umap_res$embedding) <- c("UMAP_1", "UMAP_2")
-#     # Store the UMAP embedding in the Seurat object
-#     object@reductions[["umap"]] <- Seurat::CreateDimReducObject(embeddings = umap_res$embedding, key = "UMAP_", assay = DefaultAssay(object))
-#     object@reductions[["umap"]]@misc$model <- umap_res
-#     # Optionally return the modified object
-#     return(object)
-#   }
-# }
 
 
 #' Cluster LSI (Compatible with Monocle3 and Seurat)
@@ -605,134 +431,58 @@ cluster_LSI <- function(object,
 #' @importFrom Matrix t
 #' @export
 #' @keywords internal
-# tf_idf_transform <- function(input, method=1, verbose=T){
-#
-#   # Extract matrix from input object if needed
-#   if (class(input) == "cell_data_set") {
-#     mat <- exprs(input)
-#   } else {
-#     mat <- input
-#   }
-#
-#   rn <- rownames(mat)
-#   row_sums <- rowSums(mat)
-#
-#   # Remove zero-sum rows to avoid division by zero
-#   nz <- which(row_sums > 0)
-#   mat <- mat[nz, , drop = FALSE]
-#   rn <- rn[nz]
-#   row_sums <- row_sums[nz]
-#   col_sums <- colSums(mat)
-#
-#   # **Efficient Column Normalization using `tcrossprod()`**
-#   scaling_matrix <- Diagonal(x = 1 / col_sums)
-#   mat <- tcrossprod(mat, scaling_matrix)  # Avoids explicit transposition
-#
-#   # Compute TF-IDF
-#   if (method == 1) {
-#     if (verbose) message("Computing Inverse Document Frequency")
-#     idf <- log(1 + ncol(mat) / row_sums)
-#
-#     if (verbose) message("Computing TF-IDF Matrix")
-#     mat <- tcrossprod(Diagonal(x = idf), mat)  # Efficient multiplication
-#   }
-#   else if (method == 2) {
-#     if (verbose) message("Computing Inverse Document Frequency")
-#     idf <- ncol(mat) / row_sums
-#
-#     if (verbose) message("Computing TF-IDF Matrix")
-#     mat <- tcrossprod(Diagonal(x = idf), mat)
-#     mat@x <- log(mat@x * scale_to + 1)
-#   }
-#   else if (method == 3) {
-#     mat@x <- log(mat@x + 1)
-#
-#     if (verbose) message("Computing Inverse Document Frequency")
-#     idf <- log(1 + ncol(mat) / row_sums)
-#
-#     if (verbose) message("Computing TF-IDF Matrix")
-#     mat <- tcrossprod(Diagonal(x = idf), mat)
-#   }
-#   else {
-#     stop("LSIMethod unrecognized, please select a valid method!")
-#   }
-#
-#   # Restore row names
-#   rownames(mat) <- rn
-#
-#   # Return in correct format
-#   if (class(input) == "cell_data_set") {
-#     input@assays$data$counts <- mat
-#     return(input)
-#   } else {
-#     return(mat)
-#   }
-# }
-
-tf_idf_transform <- function(input, method = 1, verbose = TRUE) {
-
-  # Extract matrix if input is a cell_data_set
-  if (class(input) == "cell_data_set") {
-    mat <- exprs(input)
-    input_class <- "cell_data_set"
-  } else {
-    mat <- input
-    rm(input)
-    input_class <- "matrix"
+tf_idf_transform <- function(input, method=1, verbose=T){
+  if(class(input)=="cell_data_set"){
+    mat<-exprs(input)
+  }else{
+    mat<-input
   }
-  gc()
-
   rn <- rownames(mat)
-  row_sums <- rowSums(mat)
-
-  # Remove zero-sum rows
-  nz <- which(row_sums > 0)
-  mat <- mat[nz, , drop = FALSE]
+  row_sums<-rowSums(mat)
+  nz<-which(row_sums>0)
+  mat <- mat[nz,]
   rn <- rn[nz]
   row_sums <- row_sums[nz]
   col_sums <- colSums(mat)
-  mat <- mat %*% Diagonal(x = 1 / col_sums)
+
+  #column normalize
+  mat <-Matrix::t(Matrix::t(mat)/col_sums)
 
 
   if (method == 1) {
-    if (verbose) message("Computing Inverse Document Frequency")
+    #Adapted from Casanovich et al.
+    if(verbose) message("Computing Inverse Document Frequency")
     idf   <- as(log(1 + ncol(mat) / row_sums), "sparseVector")
-    if (verbose) message("Computing TF-IDF Matrix")
-    mat <- as(Matrix::Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
+    if(verbose) message("Computing TF-IDF Matrix")
+    mat <- as(Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
       mat
   }
   else if (method == 2) {
-    if (verbose) message("Computing Inverse Document Frequency")
+    #Adapted from Stuart et al.
+    if(verbose) message("Computing Inverse Document Frequency")
     idf   <- as( ncol(mat) / row_sums, "sparseVector")
     if(verbose) message("Computing TF-IDF Matrix")
-    mat <- as(Matrix::Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
+    mat <- as(Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
       mat
     mat@x <- log(mat@x * scale_to + 1)
-  }
-  else if (method == 3) {
+  }else if (method == 3) {
     mat@x <- log(mat@x + 1)
     if(verbose) message("Computing Inverse Document Frequency")
     idf <- as(log(1 + ncol(mat) /row_sums), "sparseVector")
     if(verbose) message("Computing TF-IDF Matrix")
-    mat <- as(Matrix::Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
+    mat <- as(Diagonal(x = as.vector(idf)), "sparseMatrix") %*%
       mat
+  }else {
+    stop("LSIMethod unrecognized please select valid method!")
   }
-  else {
-    stop("LSIMethod unrecognized, please select a valid method!")
-  }
-
-  # Restore row names
   rownames(mat) <- rn
-
-  # Return in correct format
-  if (input_class == "cell_data_set") {
-    input@assays$data$counts <- mat
+  if(class(input)=="cell_data_set"){
+    input@assays$data$counts<-mat
     return(input)
-  } else {
+  }else{
     return(mat)
   }
 }
-
 
 
 #' @title Sparse Row Variances
@@ -741,12 +491,12 @@ tf_idf_transform <- function(input, method = 1, verbose = TRUE) {
 #' @return A numeric vector of row variances.
 #' @export
 #' @keywords internal
-# sparseRowVariances <- function(m) {
-#   row_means <- Matrix::rowMeans(m)
-#   row_means_sq <- row_means^2
-#   row_vars <- Matrix::rowMeans(m^2) - row_means_sq
-#   return(row_vars)
-# }
+sparseRowVariances <- function(m) {
+  row_means <- Matrix::rowMeans(m)
+  row_means_sq <- row_means^2
+  row_vars <- Matrix::rowMeans(m^2) - row_means_sq
+  return(row_vars)
+}
 
 #' @title Group Sums for Sparse Matrices
 #' @description Sums the columns of a matrix grouped by a factor, optimized for sparse matrices.
@@ -825,7 +575,7 @@ svd_lsi <- function (sp_mat, num_dim, mat_only = T)
 #' This function performs clustering using the specified method and then computes partitions by constructing a cluster graph and finding connected components. Cells belonging to clusters within the same connected component are assigned to the same partition.
 #'
 #' @importFrom Seurat FindNeighbors FindClusters Embeddings Reductions Idents DefaultAssay
-#' @importFrom igraph as.igraph set_vertex_attr as_data_frame graph_from_data_frame components V graph_from_adjacency_matrix
+#' @importFrom igraph as.igraph set_vertex_attr as_data_frame graph_from_data_frame components V
 #' @export
 #' @keywords internal
 #'
@@ -891,8 +641,7 @@ find_partitions <- function(obj, method = "louvain", k = 20, reduction = "umap",
   snn_graph <- obj@graphs[[graph_name]]
 
   # Convert the SNN graph to an igraph object
-  snn_igraph <- graph_from_adjacency_matrix(snn_graph, mode = "undirected", weighted = TRUE)
-  #snn_igraph <- igraph::as.igraph(g)
+  snn_igraph <- igraph::as.igraph(snn_graph)
 
   # Get the clusters
   clusters <- as.character(Seurat::Idents(obj))
@@ -927,7 +676,7 @@ find_partitions <- function(obj, method = "louvain", k = 20, reduction = "umap",
   # Map cells to partitions
   cell_partitions <- cluster_partitions[clusters]
   partitions <- as.factor(cell_partitions)
-  names(partitions)<- Cells(obj)
+
   # Add partitions to metadata
   obj$partitions <- partitions
 
@@ -935,4 +684,3 @@ find_partitions <- function(obj, method = "louvain", k = 20, reduction = "umap",
 
   return(obj)
 }
-

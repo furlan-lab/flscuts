@@ -25,8 +25,6 @@
 #' @param random_seed Integer specifying the random seed for reproducibility. Default is 2020.
 #' @param verbose Logical indicating whether to display progress messages. Default is \code{FALSE}.
 #' @param run_umap Logical indicating whether to run UMAP.
-#' @param monocle_data_layer Character specifying which assay of a Monocle3 `cell_data_set` to use as input: \code{"counts"} (raw counts, the default) or \code{"data"} (log-normalized counts via \code{normalized_counts}). Use \code{"counts"} to match the m3addon \code{iterative_LSI}/\code{project_data} convention; bulk projectees are extracted as raw counts, so training on \code{"counts"} keeps the TF-IDF normalization consistent between reference and projectee. Default is \code{"counts"}.
-#' @param seurat_data_layer Character specifying which layer of a Seurat assay to use as input (e.g. \code{"counts"} or \code{"data"}). Default is \code{"counts"}.
 #' @param return_object Logical indicating whether to return the updated input object with LSI reduction and clustering results. Default is \code{TRUE}.
 #' @param ... Additional arguments passed to lower-level functions.
 #'
@@ -78,8 +76,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
                                                                                                                                             3000), exclude_features = NULL, binarize = FALSE, scale = TRUE,
                            log_transform = TRUE, LSI_method = 1, partition_qval = 0.05, assay = "RNA",
                            seed = 2020, scale_to = 10000, leiden_k = 20, leiden_weight = FALSE,
-                           leiden_iter = 1, verbose = FALSE, return_iterations = FALSE, run_umap = FALSE,
-                           seurat_data_layer = "counts", monocle_data_layer = "counts", ...)
+                           leiden_iter = 1, verbose = FALSE, return_iterations = FALSE, run_umap = FALSE, ...)
 {
   # Check object type
   if (is(object, "Seurat")) {
@@ -104,28 +101,17 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
   # Get the expression matrix
   if (!is.null(exclude_features)) {
     if (object_type == "seurat") {
-      mat <- GetAssayData(object, assay = assay, layer = seurat_data_layer)
+      mat <- GetAssayData(object, assay = assay, layer = "counts")
       mat <- mat[!rownames(mat) %in% exclude_features, ]
     } else {
-      if (monocle_data_layer=="counts") {
-        mat <- counts(object)  # or assay(object)
-        mat <- mat[!rownames(mat) %in% exclude_features, ]
-      } else {
-        # Get normalized data (similar to Seurat's "data" layer)
-        mat <- normalized_counts(object, norm_method = "log")
-        mat <- mat[!rownames(mat) %in% exclude_features, ]
-      }
+      mat <- assay(object)
+      mat <- mat[!rownames(mat) %in% exclude_features, ]
     }
   } else {
     if (object_type == "seurat") {
-      mat <- GetAssayData(object, assay = assay, layer = seurat_data_layer)
+      mat <- GetAssayData(object, assay = assay, layer = "counts")
     } else {
-      if (monocle_data_layer=="counts") {
-        mat <- counts(object)  # or assay(object)
-      } else {
-        # Get normalized data (similar to Seurat's "data" layer)
-        mat <- normalized_counts(object, norm_method = "log")
-      }
+      mat <- assay(object)
     }
   }
   mat <- mat[order(rownames(mat)), ]
@@ -144,7 +130,6 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     #matNorm <- t(t(mat)/Matrix::colSums(mat)) * scale_to ### THIS EXPANDS MEMORY
     col_sums <- Matrix::colSums(mat)
     matNorm <- Matrix::tcrossprod(mat, Diagonal(x = 1 / col_sums)) * scale_to
-    colnames(matNorm) <- colnames(mat)
   } else {
     matNorm <- mat
   }
@@ -229,7 +214,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
       object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
                                            row_sums = row_sums, seed=seed, binarize=binarize,
                                            scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                           granges=rowRanges(object)[original_features[f_idx]], LSI_method=LSI_method, outliers=NULL)
+                                           granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
       # object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
       #                                      row_sums = row_sums, seed=seed, binarize=binarize,
       #                                      scale_to=scale_to, num_dim=num_dim, resolution=resolution,
@@ -320,7 +305,7 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
         object@int_metadata$LSI_model<- list(svd=svd_list$svd, features=original_features[f_idx],
                                    row_sums = row_sums, seed=seed, binarize=binarize,
                                    scale_to=scale_to, num_dim=num_dim, resolution=resolution,
-                                   granges=rowRanges(object)[original_features[f_idx]], LSI_method=LSI_method, outliers=NULL)
+                                   granges=rowRanges(object)[f_idx], LSI_method=LSI_method, outliers=NULL)
       } else if (object_type == "seurat") {
           # object@reductions[["lsi"]]@misc <- list(svd=svd_list$svd, features=original_features[f_idx],
           #                                       row_sums = row_sums, seed=seed, binarize=binarize,
@@ -357,7 +342,6 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
 #' @importFrom uwot umap
 #' @export
 #'
-#' 
 run_umap <- function(object, ...) {
   # Check object type
   if (is(object, "Seurat")) {
@@ -388,153 +372,30 @@ run_umap <- function(object, ...) {
 
   # Capture additional arguments from ...
   user_params <- list(...)
-  
+
   # Merge user-provided parameters with the default ones
   umap_params <- modifyList(default_params, user_params)
 
   if (object_type == "monocle3") {
-    if (umap_params$verbose) 
-      message("Running Uniform Manifold Approximation and Projection")
-    
-    object <- monocle3:::initialize_reduce_dim_metadata(object, "UMAP")
-    object <- monocle3:::initialize_reduce_dim_model_identity(object, "UMAP")
-    
-    # SET SEED BEFORE UMAP
-    set.seed(2016)
-    
-    # Get LSI embeddings
-    lsi_matrix <- as.matrix(SingleCellExperiment::reducedDims(object)[["LSI"]])
-    
-    # Run UMAP directly (not the two-step process)
-    umap_params$X <- lsi_matrix
-    umap_model <- do.call(uwot::umap, umap_params)
-    
-    # Extract embedding
-    umap_res <- umap_model$embedding
-    row.names(umap_res) <- colnames(object)
-    
-    SingleCellExperiment::reducedDims(object)[["UMAP"]] <- umap_res
-    object@reduce_dim_aux[["UMAP"]][["model"]][["umap_model"]] <- umap_model
-    
-    return(object)
+    ##TODO
+    print("Under construction for Monocle3 objects.")
+    return(0)
   }
 
   if (object_type == "seurat") {
-    # SET SEED BEFORE UMAP
-    set.seed(2016)
-    
     umap_params$X <- object@reductions$lsi@cell.embeddings
-    
     # Run UMAP with the final set of parameters
-    umap_res <- do.call(uwot::umap, umap_params)
-    
+    umap_res <- do.call(umap, umap_params)
+    #umap_res = umap(umap_params$X, ret_model = TRUE,  ret_extra = "model", verbose = umap_params$verbose)
     # Rename UMAP dimensions
     colnames(umap_res$embedding) <- c("UMAP_1", "UMAP_2")
-    
     # Store the UMAP embedding in the Seurat object
-    object@reductions[["umap"]] <- Seurat::CreateDimReducObject(
-      embeddings = umap_res$embedding, 
-      key = "UMAP_", 
-      assay = DefaultAssay(object)
-    )
+    object@reductions[["umap"]] <- Seurat::CreateDimReducObject(embeddings = umap_res$embedding, key = "UMAP_", assay = DefaultAssay(object))
     object@reductions[["umap"]]@misc$model <- umap_res
-    
+    # Optionally return the modified object
     return(object)
   }
 }
-# run_umap <- function(object, ...) {
-#   # Check object type
-#   if (is(object, "Seurat")) {
-#     object_type <- "seurat"
-#   } else if (is(object, "cell_data_set")) {
-#     object_type <- "monocle3"
-#   } else {
-#     stop("The object must be a Seurat object or a Monocle3 cell_data_set object.")
-#   }
-
-#   # Default UMAP parameters
-#   default_params <- list(
-#     n_neighbors = 30L,
-#     n_components = 2L,
-#     metric = "cosine",
-#     n_epochs = NULL,
-#     learning_rate = 1,
-#     min_dist = 0.3,
-#     spread = 1,
-#     set_op_mix_ratio = 1,
-#     local_connectivity = 1L,
-#     repulsion_strength = 1,
-#     negative_sample_rate = 5,
-#     verbose = TRUE,
-#     ret_model = TRUE,
-#     ret_nn = TRUE
-#   )
-
-#   # Capture additional arguments from ...
-#   user_params <- list(...)
-
-#   # Merge user-provided parameters with the default ones
-#   umap_params <- modifyList(default_params, user_params)
-
-#   if (object_type == "monocle3") {
-#         #object <- monocle3:::add_citation(object, "UMAP")
-#         if (default_params$verbose) 
-#             message("Running Uniform Manifold Approximation and Projection")
-#         object <- monocle3:::initialize_reduce_dim_metadata(object, "UMAP")
-#         object <- monocle3:::initialize_reduce_dim_model_identity(object, "UMAP")
-    
-#         umap_model <- uwot::umap(as.matrix(SingleCellExperiment::reducedDims(object)[["LSI"]]), n_components = default_params$n_components, 
-#             metric = default_params$metric, min_dist = default_params$min_dist, n_neighbors = default_params$n_neighbors, 
-#             ret_model = TRUE)
-#         set.seed(2016)
-#         umap_res <- uwot::umap_transform(X = as.matrix(SingleCellExperiment::reducedDims(object)[["LSI"]]), 
-#             model = umap_model, n_threads = 1)
-#         row.names(umap_res) <- colnames(object)
-#         SingleCellExperiment::reducedDims(object)[["UMAP"]] <- umap_res
-#         # object@reduce_dim_aux[["UMAP"]][["model"]][["umap_preprocess_method"]] <- preprocess_method
-#         # object@reduce_dim_aux[["UMAP"]][["model"]][["max_components"]] <- max_components
-#         # object@reduce_dim_aux[["UMAP"]][["model"]][["umap_metric"]] <- umap.metric
-#         # object@reduce_dim_aux[["UMAP"]][["model"]][["umap_min_dist"]] <- umap.min_dist
-#         # object@reduce_dim_aux[["UMAP"]][["model"]][["umap_n_neighbors"]] <- umap.n_neighbors
-#         # object@reduce_dim_aux[["UMAP"]][["model"]][["umap_fast_sgd"]] <- umap.fast_sgd
-#         object@reduce_dim_aux[["UMAP"]][["model"]][["umap_model"]] <- umap_model
-#         # matrix_id <- get_unique_id(SingleCellExperiment::reducedDims(object)[["UMAP"]])
-#         # reduce_dim_matrix_identity <- get_reduce_dim_matrix_identity(cds, 
-#         #     preprocess_method)
-#         # cds <- set_reduce_dim_matrix_identity(cds, "UMAP", "matrix:UMAP", 
-#         #     matrix_id, reduce_dim_matrix_identity[["matrix_type"]], 
-#         #     reduce_dim_matrix_identity[["matrix_id"]], "matrix:UMAP", 
-#         #     matrix_id)
-#         # reduce_dim_model_identity <- get_reduce_dim_model_identity(cds, 
-#         #     preprocess_method)
-#         # cds <- set_reduce_dim_model_identity(cds, "UMAP", "matrix:UMAP", 
-#         #     matrix_id, reduce_dim_model_identity[["model_type"]], 
-#         #     reduce_dim_model_identity[["model_id"]])
-#         # if (build_nn_index) {
-#         #     nn_index <- make_nn_index(subject_matrix = SingleCellExperiment::reducedDims(cds)[[reduction_method]], 
-#         #         nn_control = nn_control, verbose = verbose)
-#         #     cds <- set_cds_nn_index(cds = cds, reduction_method = reduction_method, 
-#         #         nn_index = nn_index, verbose = verbose)
-#         # }
-#         # else cds <- clear_cds_nn_index(cds = cds, reduction_method = reduction_method, 
-#         #     nn_method = "all")
-#       return(object)
-#   }
-
-#   if (object_type == "seurat") {
-#     umap_params$X <- object@reductions$lsi@cell.embeddings
-#     # Run UMAP with the final set of parameters
-#     umap_res <- do.call(umap, umap_params)
-#     #umap_res = umap(umap_params$X, ret_model = TRUE,  ret_extra = "model", verbose = umap_params$verbose)
-#     # Rename UMAP dimensions
-#     colnames(umap_res$embedding) <- c("UMAP_1", "UMAP_2")
-#     # Store the UMAP embedding in the Seurat object
-#     object@reductions[["umap"]] <- Seurat::CreateDimReducObject(embeddings = umap_res$embedding, key = "UMAP_", assay = DefaultAssay(object))
-#     object@reductions[["umap"]]@misc$model <- umap_res
-#     # Optionally return the modified object
-#     return(object)
-#   }
-# }
 
 
 #' Cluster LSI (Compatible with Monocle3 and Seurat)
@@ -935,4 +796,3 @@ find_partitions <- function(obj, method = "louvain", k = 20, reduction = "umap",
 
   return(obj)
 }
-
