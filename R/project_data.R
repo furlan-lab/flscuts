@@ -646,10 +646,14 @@ extract_data <- function(query,
       if (nrow(se_sub) == 0) {
         stop("No overlap between query and subject found.")
       }
-      # Get the data matrix
-      #dat <- as.matrix(SummarizedExperiment::assay(se_sub)) #is this a bug?
-      dat <- as(SummarizedExperiment::assay(subject), "dgCMatrix")
-      # mat <- dat[fidx, , drop = FALSE]
+      # BUGFIX (2026-06): dat must be the assay of se_sub (the overlap subset),
+      # NOT assay(subject). findOverlaps() below runs against rowRanges(se_sub),
+      # so best_hits$subjectHits index into se_sub's rows. Using the full subject
+      # assay paired each query feature with the wrong bin's counts, scrambling
+      # the projectee matrix and collapsing every projected sample to the manifold
+      # centroid (0/45 cell types correct). m3addon uses assay(se_sub); match it.
+      # dat <- as(SummarizedExperiment::assay(subject), "dgCMatrix")  # <- buggy: full assay, mis-indexed by subjectHits
+      dat <- as(SummarizedExperiment::assay(se_sub), "dgCMatrix")     # <- fixed: overlap subset, aligns with subjectHits
       # Find overlaps and resolve duplicates
       hits <- data.table::as.data.table(GenomicRanges::findOverlaps(query, SummarizedExperiment::rowRanges(se_sub), ignore.strand = ignore_strand))
     } else if (subject_type == "Seurat") {
