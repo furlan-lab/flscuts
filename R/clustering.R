@@ -200,8 +200,10 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
     object@reductions[["lsi"]] <- Seurat::CreateDimReducObject(embeddings = svd_list$matSVD,
                                                                key = "LSI_", assay = Seurat::DefaultAssay(object))
     object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k, nn.method  = "rann")
-    object <- Seurat::FindClusters(object, resolution = resolution[1], algorithm = 4, random.seed = seed, verbose = verbose)
-    clusters <- Seurat::Idents(object)
+    # object <- Seurat::FindClusters(object, resolution = resolution[1], algorithm = 4, random.seed = seed, verbose = verbose)
+    # clusters <- Seurat::Idents(object)
+    clusters <- .leiden_igraph(object, resolution = resolution[1], n_iter = leiden_iter, seed = seed)
+    Seurat::Idents(object) <- clusters
   }
 
   # Proceed with the rest of the function, adapting as needed
@@ -294,8 +296,10 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
       object@reductions[["lsi"]] <- Seurat::CreateDimReducObject(embeddings = svd_list$matSVD,
                                                                  key = "LSI_", assay = Seurat::DefaultAssay(object))
       object <- Seurat::FindNeighbors(object, reduction = "lsi", dims = 1:num_dim, k.param = leiden_k, nn.method  = "rann")
-      object <- Seurat::FindClusters(object, resolution = resolution[iteration], algorithm = 4, random.seed = seed, verbose = verbose)
-      clusters <- Seurat::Idents(object)
+      # object <- Seurat::FindClusters(object, resolution = resolution[iteration], algorithm = 4, random.seed = seed, verbose = verbose)
+      # clusters <- Seurat::Idents(object)
+      clusters <- .leiden_igraph(object, resolution = resolution[iteration], n_iter = leiden_iter, seed = seed)
+      Seurat::Idents(object) <- clusters
     }
 
     clusterMat <- edgeR::cpm(groupSums(mat, clusters, sparse = TRUE),
@@ -353,11 +357,26 @@ iterative_LSI <- function (object, num_dim = 25, starting_features = NULL, resol
   }
 }
 
+# helper for clustering seurat objects in iLSI
+#' @keywords internal
+.leiden_igraph <- function(object, resolution, n_iter = 1L, seed = 2020) {
+  snn <- object@graphs[[paste0(Seurat::DefaultAssay(object), "_snn")]]   # built by FindNeighbors
+  gr  <- igraph::graph_from_adjacency_matrix(methods::as(snn, "dgCMatrix"),
+                                             mode = "undirected", weighted = TRUE, diag = FALSE)
+  set.seed(seed)
+  part <- igraph::cluster_leiden(gr,
+             objective_function  = "modularity",       # matches Seurat's RBConfiguration default
+             resolution_parameter = resolution,
+             n_iterations         = max(n_iter, 2L))   # igraph wants >=2 to converge well
+  factor(igraph::membership(part))
+}
+
+
 #' @keywords internal
 #' @importFrom uwot umap
 #' @export
 #'
-#' 
+#'
 run_umap <- function(object, ...) {
   # Check object type
   if (is(object, "Seurat")) {
@@ -388,57 +407,57 @@ run_umap <- function(object, ...) {
 
   # Capture additional arguments from ...
   user_params <- list(...)
-  
+
   # Merge user-provided parameters with the default ones
   umap_params <- modifyList(default_params, user_params)
 
   if (object_type == "monocle3") {
-    if (umap_params$verbose) 
+    if (umap_params$verbose)
       message("Running Uniform Manifold Approximation and Projection")
-    
+
     object <- monocle3:::initialize_reduce_dim_metadata(object, "UMAP")
     object <- monocle3:::initialize_reduce_dim_model_identity(object, "UMAP")
-    
+
     # SET SEED BEFORE UMAP
     set.seed(2016)
-    
+
     # Get LSI embeddings
     lsi_matrix <- as.matrix(SingleCellExperiment::reducedDims(object)[["LSI"]])
-    
+
     # Run UMAP directly (not the two-step process)
     umap_params$X <- lsi_matrix
     umap_model <- do.call(uwot::umap, umap_params)
-    
+
     # Extract embedding
     umap_res <- umap_model$embedding
     row.names(umap_res) <- colnames(object)
-    
+
     SingleCellExperiment::reducedDims(object)[["UMAP"]] <- umap_res
     object@reduce_dim_aux[["UMAP"]][["model"]][["umap_model"]] <- umap_model
-    
+
     return(object)
   }
 
   if (object_type == "seurat") {
     # SET SEED BEFORE UMAP
     set.seed(2016)
-    
+
     umap_params$X <- object@reductions$lsi@cell.embeddings
-    
+
     # Run UMAP with the final set of parameters
     umap_res <- do.call(uwot::umap, umap_params)
-    
+
     # Rename UMAP dimensions
     colnames(umap_res$embedding) <- c("UMAP_1", "UMAP_2")
-    
+
     # Store the UMAP embedding in the Seurat object
     object@reductions[["umap"]] <- Seurat::CreateDimReducObject(
-      embeddings = umap_res$embedding, 
-      key = "UMAP_", 
+      embeddings = umap_res$embedding,
+      key = "UMAP_",
       assay = DefaultAssay(object)
     )
     object@reductions[["umap"]]@misc$model <- umap_res
-    
+
     return(object)
   }
 }
@@ -478,16 +497,16 @@ run_umap <- function(object, ...) {
 
 #   if (object_type == "monocle3") {
 #         #object <- monocle3:::add_citation(object, "UMAP")
-#         if (default_params$verbose) 
+#         if (default_params$verbose)
 #             message("Running Uniform Manifold Approximation and Projection")
 #         object <- monocle3:::initialize_reduce_dim_metadata(object, "UMAP")
 #         object <- monocle3:::initialize_reduce_dim_model_identity(object, "UMAP")
-    
-#         umap_model <- uwot::umap(as.matrix(SingleCellExperiment::reducedDims(object)[["LSI"]]), n_components = default_params$n_components, 
-#             metric = default_params$metric, min_dist = default_params$min_dist, n_neighbors = default_params$n_neighbors, 
+
+#         umap_model <- uwot::umap(as.matrix(SingleCellExperiment::reducedDims(object)[["LSI"]]), n_components = default_params$n_components,
+#             metric = default_params$metric, min_dist = default_params$min_dist, n_neighbors = default_params$n_neighbors,
 #             ret_model = TRUE)
 #         set.seed(2016)
-#         umap_res <- uwot::umap_transform(X = as.matrix(SingleCellExperiment::reducedDims(object)[["LSI"]]), 
+#         umap_res <- uwot::umap_transform(X = as.matrix(SingleCellExperiment::reducedDims(object)[["LSI"]]),
 #             model = umap_model, n_threads = 1)
 #         row.names(umap_res) <- colnames(object)
 #         SingleCellExperiment::reducedDims(object)[["UMAP"]] <- umap_res
@@ -499,24 +518,24 @@ run_umap <- function(object, ...) {
 #         # object@reduce_dim_aux[["UMAP"]][["model"]][["umap_fast_sgd"]] <- umap.fast_sgd
 #         object@reduce_dim_aux[["UMAP"]][["model"]][["umap_model"]] <- umap_model
 #         # matrix_id <- get_unique_id(SingleCellExperiment::reducedDims(object)[["UMAP"]])
-#         # reduce_dim_matrix_identity <- get_reduce_dim_matrix_identity(cds, 
+#         # reduce_dim_matrix_identity <- get_reduce_dim_matrix_identity(cds,
 #         #     preprocess_method)
-#         # cds <- set_reduce_dim_matrix_identity(cds, "UMAP", "matrix:UMAP", 
-#         #     matrix_id, reduce_dim_matrix_identity[["matrix_type"]], 
-#         #     reduce_dim_matrix_identity[["matrix_id"]], "matrix:UMAP", 
+#         # cds <- set_reduce_dim_matrix_identity(cds, "UMAP", "matrix:UMAP",
+#         #     matrix_id, reduce_dim_matrix_identity[["matrix_type"]],
+#         #     reduce_dim_matrix_identity[["matrix_id"]], "matrix:UMAP",
 #         #     matrix_id)
-#         # reduce_dim_model_identity <- get_reduce_dim_model_identity(cds, 
+#         # reduce_dim_model_identity <- get_reduce_dim_model_identity(cds,
 #         #     preprocess_method)
-#         # cds <- set_reduce_dim_model_identity(cds, "UMAP", "matrix:UMAP", 
-#         #     matrix_id, reduce_dim_model_identity[["model_type"]], 
+#         # cds <- set_reduce_dim_model_identity(cds, "UMAP", "matrix:UMAP",
+#         #     matrix_id, reduce_dim_model_identity[["model_type"]],
 #         #     reduce_dim_model_identity[["model_id"]])
 #         # if (build_nn_index) {
-#         #     nn_index <- make_nn_index(subject_matrix = SingleCellExperiment::reducedDims(cds)[[reduction_method]], 
+#         #     nn_index <- make_nn_index(subject_matrix = SingleCellExperiment::reducedDims(cds)[[reduction_method]],
 #         #         nn_control = nn_control, verbose = verbose)
-#         #     cds <- set_cds_nn_index(cds = cds, reduction_method = reduction_method, 
+#         #     cds <- set_cds_nn_index(cds = cds, reduction_method = reduction_method,
 #         #         nn_index = nn_index, verbose = verbose)
 #         # }
-#         # else cds <- clear_cds_nn_index(cds = cds, reduction_method = reduction_method, 
+#         # else cds <- clear_cds_nn_index(cds = cds, reduction_method = reduction_method,
 #         #     nn_method = "all")
 #       return(object)
 #   }
@@ -935,4 +954,3 @@ find_partitions <- function(obj, method = "louvain", k = 20, reduction = "umap",
 
   return(obj)
 }
-
